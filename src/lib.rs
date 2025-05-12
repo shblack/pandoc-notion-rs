@@ -6,6 +6,7 @@
 // Main modules
 pub mod notion;
 pub mod n2p;
+pub mod p2n;
 
 // Re-export only the essential types for convenience
 
