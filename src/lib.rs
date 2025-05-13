@@ -4,7 +4,6 @@
 //! convert them to Pandoc's Abstract Syntax Tree (AST) for document processing.
 
 // Main modules
-pub mod notion;
 pub mod n2p;
 pub mod p2n;
 
