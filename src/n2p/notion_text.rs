@@ -2,9 +2,9 @@ use notion_client::objects::rich_text::{Annotations, RichText, TextColor};
 use pandoc_types::definition::{Attr, Inline, MathType, Target};
 
 /// Converts Notion API rich text objects to Pandoc inline elements
-pub struct NotionTextClientConverter;
+pub struct NotionTextConverter;
 
-impl NotionTextClientConverter {
+impl NotionTextConverter {
     /// Convert a Vec of Notion API RichText objects to Pandoc Inline elements
     pub fn convert(rich_texts: &[RichText]) -> Vec<Inline> {
         let mut result = Vec::new();
@@ -37,9 +37,9 @@ impl NotionTextClientConverter {
                     vec![Inline::Link(
                         Attr::default(),
                         inline_elements,
-                Target {
+                        Target {
                             url: link.url.clone(),
-                            title: String::new()
+                            title: String::new(),
                         },
                     )]
                 } else if let Some(url) = href {
@@ -49,7 +49,7 @@ impl NotionTextClientConverter {
                         inline_elements,
                         Target {
                             url: url.clone(),
-                            title: String::new()
+                            title: String::new(),
                         },
                     )]
                 } else {
@@ -59,8 +59,8 @@ impl NotionTextClientConverter {
             RichText::Equation { equation, .. } => {
                 vec![Inline::Math(
                     MathType::InlineMath,
-                    equation.expression.clone()),
-                ]
+                    equation.expression.clone(),
+                )]
             }
             RichText::Mention { href, .. } => {
                 // For mentions, use the plain text representation
@@ -73,10 +73,10 @@ impl NotionTextClientConverter {
                         inline_elements,
                         Target {
                             url: url.clone(),
-                            title: String::new()
+                            title: String::new(),
                         },
                     )]
-} else {
+                } else {
                     inline_elements
                 }
             }
@@ -112,21 +112,21 @@ impl NotionTextClientConverter {
                         current_word = String::new();
                     }
                     result.push(Inline::Space);
-                },
-        // Newlines become SoftBreak as they represent normal line wrapping
-        // Explicit line breaks from Notion are handled separately
-                        // For newlines, we need to determine if it's a soft break or hard break
-                        // We'll interpret newlines as SoftBreak for better compatibility with text formatting
-                        '\n' => {
-                            if !current_word.is_empty() {
-                                result.push(Inline::Str(current_word));
-                                current_word = String::new();
-                            }
-                            result.push(Inline::SoftBreak);
-                        },
+                }
+                // Newlines become SoftBreak as they represent normal line wrapping
+                // Explicit line breaks from Notion are handled separately
+                // For newlines, we need to determine if it's a soft break or hard break
+                // We'll interpret newlines as SoftBreak for better compatibility with text formatting
+                '\n' => {
+                    if !current_word.is_empty() {
+                        result.push(Inline::Str(current_word));
+                        current_word = String::new();
+                    }
+                    result.push(Inline::SoftBreak);
+                }
                 // All other characters are part of text
                 _ => {
-                   current_word.push(c);
+                    current_word.push(c);
                 }
             }
         }
@@ -146,7 +146,7 @@ impl NotionTextClientConverter {
         // Apply formatting in a specific order
 
         // Apply underline
-if annotations.underline {
+        if annotations.underline {
             // Pandoc doesn't have native underline, use a Span with a class
             let mut attr = Attr::default();
             attr.classes.push("underline".to_string());
@@ -238,14 +238,18 @@ if annotations.underline {
 mod tests {
     use super::*;
     use notion_client::objects::rich_text::{Annotations, Equation, Link, Text};
-    
+
     // Helper function to create a Text rich text object
-    fn create_text_rich_text(content: &str, annotations: Option<Annotations>, link: Option<Link>) -> RichText {
+    fn create_text_rich_text(
+        content: &str,
+        annotations: Option<Annotations>,
+        link: Option<Link>,
+    ) -> RichText {
         let text = Text {
             content: content.to_string(),
             link: link,
         };
-        
+
         RichText::Text {
             text,
             annotations,
@@ -253,13 +257,13 @@ mod tests {
             href: None,
         }
     }
-    
+
     // Helper function to create an Equation rich text object
     fn create_equation_rich_text(expression: &str) -> RichText {
         let equation = Equation {
             expression: expression.to_string(),
         };
-        
+
         RichText::Equation {
             equation,
             annotations: Annotations::default(),
@@ -267,158 +271,158 @@ mod tests {
             href: None,
         }
     }
-    
+
     #[test]
     fn test_convert_plain_text() {
         // Create a simple text object
         let rich_text = create_text_rich_text("Hello world", None, None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Expected result: Str("Hello") + Space + Str("world")
         assert_eq!(result.len(), 3);
         assert!(matches!(result[0], Inline::Str(ref s) if s == "Hello"));
         assert!(matches!(result[1], Inline::Space));
         assert!(matches!(result[2], Inline::Str(ref s) if s == "world"));
     }
-    
+
     #[test]
     fn test_convert_bold_text() {
         // Create a bold text object
         let mut annotations = Annotations::default();
         annotations.bold = true;
-        
+
         let rich_text = create_text_rich_text("Bold text", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Strong element containing the text
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Strong(_)));
-        
+
         if let Inline::Strong(inner) = &result[0] {
             assert_eq!(inner.len(), 3); // Str("Bold") + Space + Str("text")
         } else {
             panic!("Expected Strong element");
         }
     }
-    
+
     #[test]
     fn test_convert_italic_text() {
         // Create an italic text object
         let mut annotations = Annotations::default();
         annotations.italic = true;
-        
+
         let rich_text = create_text_rich_text("Italic text", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be an Emph element containing the text
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Emph(_)));
     }
-    
+
     #[test]
     fn test_convert_strikethrough_text() {
         // Create a strikethrough text object
         let mut annotations = Annotations::default();
         annotations.strikethrough = true;
-        
+
         let rich_text = create_text_rich_text("Strikethrough text", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Strikeout element containing the text
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Strikeout(_)));
     }
-    
+
     #[test]
     fn test_convert_underline_text() {
         // Create an underlined text object
         let mut annotations = Annotations::default();
         annotations.underline = true;
-        
+
         let rich_text = create_text_rich_text("Underlined text", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Span with "underline" class
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Span(_, _)));
-        
+
         if let Inline::Span(attr, _) = &result[0] {
             assert!(attr.classes.contains(&"underline".to_string()));
         } else {
             panic!("Expected Span element");
         }
     }
-    
+
     #[test]
     fn test_convert_code_text() {
         // Create a code text object
         let mut annotations = Annotations::default();
         annotations.code = true;
-        
+
         let rich_text = create_text_rich_text("code sample", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Code element
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Code(_, _)));
-        
+
         if let Inline::Code(_, content) = &result[0] {
             assert_eq!(content, "code sample");
         } else {
             panic!("Expected Code element");
         }
     }
-    
+
     #[test]
     fn test_convert_colored_text() {
         // Create a colored text object
         let mut annotations = Annotations::default();
         annotations.color = TextColor::Red;
-        
+
         let rich_text = create_text_rich_text("Colored text", Some(annotations), None);
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Span with appropriate color class
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Span(_, _)));
-        
+
         if let Inline::Span(attr, _) = &result[0] {
             assert!(attr.classes.contains(&"color-red".to_string()));
         } else {
             panic!("Expected Span element");
         }
     }
-    
+
     #[test]
     fn test_convert_link() {
         // Create a text with link
         let link = Link {
             url: "https://example.com".to_string(),
         };
-        
+
         let rich_text = create_text_rich_text("Link text", None, Some(link));
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Link element
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Link(_, _, _)));
-        
+
         if let Inline::Link(_, content, target) = &result[0] {
             assert_eq!(target.url, "https://example.com");
             assert_eq!(content.len(), 3); // Str("Link") + Space + Str("text")
@@ -426,19 +430,19 @@ mod tests {
             panic!("Expected Link element");
         }
     }
-    
+
     #[test]
     fn test_convert_equation() {
         // Create an equation
         let rich_text = create_equation_rich_text("E=mc^2");
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be a Math element
         assert_eq!(result.len(), 1);
         assert!(matches!(result[0], Inline::Math(_, _)));
-        
+
         if let Inline::Math(math_type, content) = &result[0] {
             assert!(matches!(math_type, MathType::InlineMath));
             assert_eq!(content, "E=mc^2");
@@ -446,74 +450,76 @@ mod tests {
             panic!("Expected Math element");
         }
     }
-    
+
     #[test]
     fn test_convert_multiple_rich_texts() {
         // Create multiple rich text objects
         let text1 = create_text_rich_text("Hello", None, None);
-        
+
         let mut annotations = Annotations::default();
         annotations.bold = true;
         let text2 = create_text_rich_text("bold", Some(annotations), None);
-        
+
         let rich_texts = vec![text1, text2];
-        
+
         // Convert the array to Pandoc inline elements
-        let result = NotionTextClientConverter::convert(&rich_texts);
-        
+        let result = NotionTextConverter::convert(&rich_texts);
+
         // Expected: Str("Hello") + Inline::Strong with "bold"
         assert!(result.len() > 0);
-        
+
         // Check the first element is "Hello"
         assert!(matches!(result[0], Inline::Str(ref s) if s == "Hello"));
-        
+
         // Check for the bold text (might be preceded by a space depending on implementation)
-        let bold_index = result.iter().position(|inline| matches!(inline, Inline::Strong(_)));
+        let bold_index = result
+            .iter()
+            .position(|inline| matches!(inline, Inline::Strong(_)));
         assert!(bold_index.is_some());
     }
-    
+
     #[test]
     fn test_convert_none_rich_text() {
         // Create a None rich text
         let rich_text = RichText::None;
-        
+
         // Convert it to Pandoc inline elements
-        let result = NotionTextClientConverter::convert_single_rich_text(&rich_text);
-        
+        let result = NotionTextConverter::convert_single_rich_text(&rich_text);
+
         // Result should be empty
         assert_eq!(result.len(), 0);
     }
-    
+
     #[test]
     fn test_text_to_inline() {
         // Test basic text
-        let result = NotionTextClientConverter::text_to_inline("Hello world");
+        let result = NotionTextConverter::text_to_inline("Hello world");
         assert_eq!(result.len(), 3);
-        
+
         // Test with newlines
-        let result = NotionTextClientConverter::text_to_inline("Hello\nworld");
+        let result = NotionTextConverter::text_to_inline("Hello\nworld");
         assert_eq!(result.len(), 3);
         assert!(matches!(result[1], Inline::SoftBreak));
-        
+
         // Test with multiple spaces
-        let result = NotionTextClientConverter::text_to_inline("Hello  world");
+        let result = NotionTextConverter::text_to_inline("Hello  world");
         assert_eq!(result.len(), 4);
         assert!(matches!(result[1], Inline::Space));
         assert!(matches!(result[2], Inline::Space));
     }
-    
+
     #[test]
     fn test_inlines_to_string() {
         // Create a simple inline structure
         let inlines = vec![
             Inline::Str("Hello".to_string()),
             Inline::Space,
-            Inline::Str("world".to_string())
+            Inline::Str("world".to_string()),
         ];
-        
+
         // Convert back to string
-        let result = NotionTextClientConverter::inlines_to_string(&inlines);
-        
+        let result = NotionTextConverter::inlines_to_string(&inlines);
+
         // Check result
         assert_eq!(result, "Hello world");
     }

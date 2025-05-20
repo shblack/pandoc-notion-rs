@@ -1,4 +1,4 @@
-use pandoc_notion::n2p::notion_text::NotionTextClientConverter;
+use pandoc_notion::n2p::notion_text::NotionTextConverter;
 use pandoc_notion::p2n::pandoc_text::PandocTextConverter;
 use pandoc_types::definition::Inline;
 
@@ -22,7 +22,7 @@ fn test_strong_conversion() {
 
             // Convert Notion back to Pandoc
             println!("Converting Notion back to Pandoc");
-            let roundtrip_pandoc = NotionTextClientConverter::convert(&notion_rich_text);
+            let roundtrip_pandoc = NotionTextConverter::convert(&notion_rich_text);
 
             println!("Roundtrip result: {:?}", roundtrip_pandoc);
 
@@ -59,7 +59,7 @@ fn test_complex_strong() {
         Ok(rich_text) => {
             println!("Complex Strong conversion succeeded: {:?}", rich_text);
 
-            let roundtrip = NotionTextClientConverter::convert(&rich_text);
+            let roundtrip = NotionTextConverter::convert(&rich_text);
             println!("Complex Strong roundtrip: {:?}", roundtrip);
 
             assert_eq!(original_pandoc, roundtrip);
