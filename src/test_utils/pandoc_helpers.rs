@@ -1,9 +1,6 @@
-use pandoc_types::definition::Inline;
-
 /// Helper functions for testing Pandoc-related functionality
-#[cfg(test)]
 pub mod test {
-    use super::*;
+    use pandoc_types::definition::Inline;
 
     /// Extracts text from Pandoc inline elements
     /// 
@@ -13,7 +10,7 @@ pub mod test {
     /// # Example
     /// ```
     /// use crate::test_utils::pandoc_helpers::test::extract_text_from_inlines;
-    /// use crate::pandoc::model::Inline;
+    /// use pandoc_types::definition::Inline;
     /// 
     /// let inlines = vec![Inline::Str("Hello".to_string()), Inline::Space, Inline::Str("world".to_string())];
     /// assert_eq!(extract_text_from_inlines(&inlines), "Hello world");

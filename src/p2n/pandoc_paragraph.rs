@@ -9,7 +9,7 @@ pub struct NotionParagraphBuilder {
     rich_text: Vec<RichText>,
     color: Option<TextColor>,
     children: Option<Vec<NotionBlock>>,
-    parent_id: Option<String>,
+
 }
 
 impl NotionParagraphBuilder {
@@ -19,7 +19,6 @@ impl NotionParagraphBuilder {
             rich_text: Vec::new(),
             color: None,
             children: None,
-            parent_id: None,
         }
     }
 
@@ -49,11 +48,7 @@ impl NotionParagraphBuilder {
         self
     }
 
-    /// Set the parent ID for the block
-    pub fn parent_id(mut self, id: String) -> Self {
-        self.parent_id = Some(id);
-        self
-    }
+
 
     /// Build the Notion paragraph block
     pub fn build(self) -> NotionBlock {
@@ -63,11 +58,8 @@ impl NotionParagraphBuilder {
             children: self.children,
         };
 
-        // Create parent if specified
-        let parent = self.parent_id.map(|id| {
-            use notion_client::objects::parent::Parent;
-            Parent::PageId { page_id: id }
-        });
+        // Parent is set by Notion API, not during conversion
+        let parent = None;
 
         // Create has_children flag
         let has_children = if let Some(children) = &paragraph_value.children {
@@ -116,7 +108,7 @@ impl PandocParagraphConverter {
     pub fn convert(
         &self,
         block: &PandocBlock,
-        parent_id: Option<String>,
+        _parent_id: Option<String>, // Kept for API compatibility but not used
     ) -> Result<Option<NotionBlock>, Box<dyn Error>> {
         match block {
             PandocBlock::Para(inlines) => {
@@ -133,9 +125,7 @@ impl PandocParagraphConverter {
                     builder = builder.color(color_value);
                 }
 
-                if let Some(id) = parent_id {
-                    builder = builder.parent_id(id);
-                }
+                // Parent IDs are set by Notion API, not during conversion
 
                 Ok(Some(builder.build()))
             }
@@ -147,9 +137,9 @@ impl PandocParagraphConverter {
     pub fn try_convert(
         &self,
         block: &PandocBlock,
-        parent_id: Option<String>,
+        _parent_id: Option<String>, // Kept for API compatibility but not used
     ) -> Result<Option<NotionBlock>, Box<dyn Error>> {
-        self.convert(block, parent_id)
+        self.convert(block, None)
     }
 
     /// Extract color from Pandoc inlines if wrapped in a Span with color attributes
@@ -261,26 +251,14 @@ mod tests {
         // Create a simple paragraph
         let paragraph = PandocBlock::Para(vec![Inline::Str("Paragraph with parent.".to_string())]);
 
-        // Set a parent ID
-        let parent_id = "test-page-id-123".to_string();
-
-        // Convert to Notion paragraph with parent
+        // Parent IDs are set by the Notion API, not by the converter
         let result = converter
-            .convert(&paragraph, Some(parent_id.clone()))
+            .convert(&paragraph, None)
             .unwrap()
             .unwrap();
 
-        // Verify it has the parent set
-        assert!(result.parent.is_some());
-        if let Some(parent) = result.parent {
-            use notion_client::objects::parent::Parent;
-            match parent {
-                Parent::PageId { page_id } => {
-                    assert_eq!(page_id, parent_id);
-                }
-                _ => panic!("Expected page_id parent type"),
-            }
-        }
+        // Verify no parent is set during conversion
+        assert!(result.parent.is_none());
     }
 
     #[test]

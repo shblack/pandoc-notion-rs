@@ -11,7 +11,6 @@ pub struct NotionHeadingBuilder {
     color: Option<TextColor>,
     is_toggleable: Option<bool>,
     level: u8,
-    parent_id: Option<String>,
 }
 
 impl NotionHeadingBuilder {
@@ -22,7 +21,6 @@ impl NotionHeadingBuilder {
             color: None,
             is_toggleable: None,
             level: 1,
-            parent_id: None,
         }
     }
 
@@ -51,11 +49,7 @@ impl NotionHeadingBuilder {
         self
     }
 
-    /// Set the parent ID for the block
-    pub fn parent_id(mut self, id: String) -> Self {
-        self.parent_id = Some(id);
-        self
-    }
+
 
     /// Build the Notion heading block
     pub fn build(self) -> NotionBlock {
@@ -80,11 +74,8 @@ impl NotionHeadingBuilder {
             }, // Default fallback
         };
 
-        // Create parent if specified
-        let parent = self.parent_id.map(|id| {
-            use notion_client::objects::parent::Parent;
-            Parent::PageId { page_id: id }
-        });
+        // Parent is set by Notion API, not during conversion
+        let parent = None;
 
         NotionBlock {
             object: Some("block".to_string()),
@@ -124,7 +115,7 @@ impl PandocHeadingConverter {
     pub fn convert(
         &self,
         block: &PandocBlock,
-        parent_id: Option<String>,
+        _parent_id: Option<String>, // Kept for API compatibility but not used
     ) -> Result<Option<NotionBlock>, Box<dyn Error>> {
         match block {
             PandocBlock::Header(level, attr, inlines) => {
@@ -148,9 +139,7 @@ impl PandocHeadingConverter {
                     builder = builder.is_toggleable(toggleable);
                 }
 
-                if let Some(id) = parent_id {
-                    builder = builder.parent_id(id);
-                }
+                // Parent IDs are set by Notion API, not during conversion
 
                 Ok(Some(builder.build()))
             }
@@ -162,9 +151,9 @@ impl PandocHeadingConverter {
     pub fn try_convert(
         &self,
         block: &PandocBlock,
-        parent_id: Option<String>,
+        _parent_id: Option<String>, // Kept for API compatibility but not used
     ) -> Result<Option<NotionBlock>, Box<dyn Error>> {
-        self.convert(block, parent_id)
+        self.convert(block, None)
     }
 
     /// Extract color from Pandoc attributes if present

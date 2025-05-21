@@ -1,5 +1,7 @@
 use crate::p2n::pandoc_heading::PandocHeadingConverter;
+use crate::p2n::pandoc_list::PandocListConverter;
 use crate::p2n::pandoc_paragraph::PandocParagraphConverter;
+use crate::p2n::pandoc_quote::PandocQuoteConverter;
 use crate::p2n::visitor::PandocBlockVisitor;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, ParagraphValue};
 use notion_client::objects::rich_text::RichText;
@@ -10,6 +12,8 @@ use std::error::Error;
 pub struct PandocToNotionVisitor {
     paragraph_converter: PandocParagraphConverter,
     heading_converter: PandocHeadingConverter,
+    list_converter: PandocListConverter,
+    quote_converter: PandocQuoteConverter,
 }
 
 impl PandocToNotionVisitor {
@@ -18,6 +22,8 @@ impl PandocToNotionVisitor {
         Self {
             paragraph_converter: PandocParagraphConverter::new(),
             heading_converter: PandocHeadingConverter::new(),
+            list_converter: PandocListConverter::new(),
+            quote_converter: PandocQuoteConverter::new(),
         }
     }
 
@@ -25,9 +31,8 @@ impl PandocToNotionVisitor {
     pub fn convert_blocks(
         &self,
         blocks: &[PandocBlock],
-        parent_id: Option<String>,
     ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
-        self.process_blocks(blocks, parent_id)
+        self.process_blocks(blocks)
     }
 }
 
@@ -38,30 +43,23 @@ impl Default for PandocToNotionVisitor {
 }
 
 impl PandocBlockVisitor for PandocToNotionVisitor {
-    fn visit_block(
-        &self,
-        block: &PandocBlock,
-        parent_id: Option<String>,
-    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+    fn visit_block(&self, block: &PandocBlock) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Dispatch to specific visitor method based on block type
         match block {
-            PandocBlock::Para(inlines) => self.visit_paragraph(inlines, parent_id),
-            PandocBlock::Plain(inlines) => self.visit_plain(inlines, parent_id),
-            PandocBlock::Header(level, attr, inlines) => {
-                self.visit_header(*level, attr, inlines, parent_id)
-            }
-            _ => self.visit_unsupported(block, parent_id),
+            PandocBlock::Para(inlines) => self.visit_paragraph(inlines),
+            PandocBlock::Plain(inlines) => self.visit_plain(inlines),
+            PandocBlock::Header(level, attr, inlines) => self.visit_header(*level, attr, inlines),
+            PandocBlock::BlockQuote(blocks) => self.visit_block_quote(blocks),
+            PandocBlock::BulletList(items) => self.visit_bullet_list(items),
+            PandocBlock::OrderedList(attrs, items) => self.visit_ordered_list(attrs, items),
+            _ => self.visit_unsupported(block),
         }
     }
 
-    fn visit_paragraph(
-        &self,
-        inlines: &[Inline],
-        parent_id: Option<String>,
-    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+    fn visit_paragraph(&self, inlines: &[Inline]) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Use the existing paragraph converter
         let para_block = PandocBlock::Para(inlines.to_vec());
-        match self.paragraph_converter.convert(&para_block, parent_id)? {
+        match self.paragraph_converter.convert(&para_block, None)? {
             Some(block) => Ok(vec![block]),
             None => Ok(vec![]),
         }
@@ -72,31 +70,141 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
         level: i32,
         attr: &Attr,
         inlines: &[Inline],
-        parent_id: Option<String>,
     ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Use the existing header converter
         let header_block = PandocBlock::Header(level, attr.clone(), inlines.to_vec());
-        match self.heading_converter.convert(&header_block, parent_id)? {
+        match self.heading_converter.convert(&header_block, None)? {
             Some(block) => Ok(vec![block]),
             None => Ok(vec![]),
         }
     }
-
-    fn visit_plain(
-        &self,
-        inlines: &[Inline],
-        parent_id: Option<String>,
-    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+    fn visit_plain(&self, inlines: &[Inline]) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Convert Plain to Paragraph by default
         // Plain is essentially the same as Para but used in different contexts
-        self.visit_paragraph(inlines, parent_id)
+        self.visit_paragraph(inlines)
     }
 
-    fn visit_unsupported(
+    fn visit_bullet_list(
         &self,
-        block: &PandocBlock,
-        parent_id: Option<String>,
+        items: &[Vec<PandocBlock>],
     ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+        let mut result = Vec::new();
+
+        for item in items {
+            if let Some(first_block) = item.first() {
+                // First check if this might be a todo item
+                if let Some(todo_block) = self.list_converter.try_convert_todo_item(first_block)? {
+                    // Process any nested blocks as children
+                    let nested_blocks = self.list_converter.extract_nested_blocks(item);
+                    let mut children = Vec::new();
+
+                    // Process each nested block using the visitor
+                    for nested_block in nested_blocks {
+                        let nested_result = self.visit_block(nested_block)?;
+                        children.extend(nested_result);
+                    }
+
+                    // Add children to the todo item
+                    let todo_with_children = self
+                        .list_converter
+                        .add_children_to_block(todo_block, children)?;
+
+                    result.push(todo_with_children);
+                    continue;
+                }
+
+                // If not a to-do item, convert as a regular bulleted list item
+                let bullet_block = self.list_converter.convert_bullet_list_item(first_block)?;
+
+                // Process any nested blocks as children
+                let nested_blocks = self.list_converter.extract_nested_blocks(item);
+                let mut children = Vec::new();
+
+                // Process each nested block using the visitor
+                for nested_block in nested_blocks {
+                    let nested_result = self.visit_block(nested_block)?;
+                    children.extend(nested_result);
+                }
+
+                // Add children to the bullet item
+                let bullet_with_children = self
+                    .list_converter
+                    .add_children_to_block(bullet_block, children)?;
+
+                result.push(bullet_with_children);
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn visit_ordered_list(
+        &self,
+        attrs: &pandoc_types::definition::ListAttributes,
+        items: &[Vec<PandocBlock>],
+    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+        let mut result = Vec::new();
+
+        for item in items {
+            if let Some(first_block) = item.first() {
+                // First check if this might be a todo item (same approach as bullet list)
+                if let Some(todo_block) = self.list_converter.try_convert_todo_item(first_block)? {
+                    // Process any nested blocks as children
+                    let nested_blocks = self.list_converter.extract_nested_blocks(item);
+                    let mut children = Vec::new();
+
+                    // Process each nested block using the visitor
+                    for nested_block in nested_blocks {
+                        let nested_result = self.visit_block(nested_block)?;
+                        children.extend(nested_result);
+                    }
+
+                    // Add children to the todo item
+                    let todo_with_children = self
+                        .list_converter
+                        .add_children_to_block(todo_block, children)?;
+
+                    result.push(todo_with_children);
+                    continue;
+                }
+
+                // If not a to-do item, convert as a regular ordered list item
+                let ordered_block = self
+                    .list_converter
+                    .convert_ordered_list_item(first_block, attrs)?;
+
+                // Process any nested blocks as children
+                let nested_blocks = self.list_converter.extract_nested_blocks(item);
+                let mut children = Vec::new();
+
+                // Process each nested block using the visitor
+                for nested_block in nested_blocks {
+                    let nested_result = self.visit_block(nested_block)?;
+                    children.extend(nested_result);
+                }
+
+                // Add children to the ordered item
+                let ordered_with_children = self
+                    .list_converter
+                    .add_children_to_block(ordered_block, children)?;
+
+                result.push(ordered_with_children);
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn visit_block_quote(
+        &self,
+        blocks: &[PandocBlock],
+    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+        // Convert the block quote using our quote converter
+        let quote_block = self.quote_converter.convert(blocks)?;
+        Ok(vec![quote_block])
+    }
+
+    fn visit_unsupported(&self, block: &PandocBlock) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Create a paragraph block with a message about unsupported block
         let block_type = format!("{:?}", block);
         let message = format!("Unsupported Pandoc block type: {}", block_type);
@@ -116,16 +224,10 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
             children: None,
         };
 
-        // Create parent if specified
-        let parent = parent_id.map(|id| {
-            use notion_client::objects::parent::Parent;
-            Parent::PageId { page_id: id }
-        });
-
         let notion_block = NotionBlock {
             object: Some("block".to_string()),
             id: Some(String::new()),
-            parent,
+            parent: None,
             created_time: None,
             created_by: None,
             last_edited_time: None,
@@ -140,15 +242,11 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
         Ok(vec![notion_block])
     }
 
-    fn process_blocks(
-        &self,
-        blocks: &[PandocBlock],
-        parent_id: Option<String>,
-    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+    fn process_blocks(&self, blocks: &[PandocBlock]) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         let mut result = Vec::new();
 
         for block in blocks {
-            let converted = self.visit_block(block, parent_id.clone())?;
+            let converted = self.visit_block(block)?;
             result.extend(converted);
         }
 
@@ -168,7 +266,7 @@ mod tests {
         let paragraph = PandocBlock::Para(vec![Inline::Str("Test paragraph".to_string())]);
 
         // Convert using visitor
-        let result = visitor.visit_block(&paragraph, None).unwrap();
+        let result = visitor.visit_block(&paragraph).unwrap();
 
         // Should produce a single block
         assert_eq!(result.len(), 1);
@@ -198,7 +296,7 @@ mod tests {
         );
 
         // Convert using visitor
-        let result = visitor.visit_block(&header, None).unwrap();
+        let result = visitor.visit_block(&header).unwrap();
 
         // Should produce a single block
         assert_eq!(result.len(), 1);
@@ -221,7 +319,7 @@ mod tests {
         let plain = PandocBlock::Plain(vec![Inline::Str("Plain text".to_string())]);
 
         // Convert using visitor
-        let result = visitor.visit_block(&plain, None).unwrap();
+        let result = visitor.visit_block(&plain).unwrap();
 
         // Should produce a single block
         assert_eq!(result.len(), 1);
@@ -247,7 +345,7 @@ mod tests {
         );
 
         // Convert using visitor
-        let result = visitor.visit_block(&code_block, None).unwrap();
+        let result = visitor.visit_block(&code_block).unwrap();
 
         // Should produce a single block
         assert_eq!(result.len(), 1);
@@ -285,7 +383,7 @@ mod tests {
         ];
 
         // Convert all blocks
-        let result = visitor.convert_blocks(&blocks, None).unwrap();
+        let result = visitor.convert_blocks(&blocks).unwrap();
 
         // Should have 4 blocks
         assert_eq!(result.len(), 4);
@@ -329,6 +427,249 @@ mod tests {
                 );
             }
             _ => panic!("Expected Paragraph block type"),
+        }
+    }
+
+    #[test]
+    fn test_convert_bullet_list() {
+        let visitor = PandocToNotionVisitor::new();
+
+        // Create a simple bullet list
+        let item1 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "First bullet".to_string(),
+        )])];
+        let item2 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "Second bullet".to_string(),
+        )])];
+        let bullet_list = PandocBlock::BulletList(vec![item1, item2]);
+
+        // Convert using visitor
+        let result = visitor.visit_block(&bullet_list).unwrap();
+
+        // Should produce two blocks (two bullet list items)
+        assert_eq!(result.len(), 2);
+
+        // Verify first bullet item
+        match &result[0].block_type {
+            BlockType::BulletedListItem { bulleted_list_item } => {
+                assert_eq!(bulleted_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    bulleted_list_item.rich_text[0].plain_text().unwrap(),
+                    "First bullet"
+                );
+            }
+            _ => panic!("Expected BulletedListItem block type"),
+        }
+
+        // Verify second bullet item
+        match &result[1].block_type {
+            BlockType::BulletedListItem { bulleted_list_item } => {
+                assert_eq!(bulleted_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    bulleted_list_item.rich_text[0].plain_text().unwrap(),
+                    "Second bullet"
+                );
+            }
+            _ => panic!("Expected BulletedListItem block type"),
+        }
+    }
+
+    #[test]
+    fn test_convert_ordered_list() {
+        let visitor = PandocToNotionVisitor::new();
+
+        // Create a simple ordered list
+        let attrs = pandoc_types::definition::ListAttributes {
+            start_number: 1,
+            style: pandoc_types::definition::ListNumberStyle::Decimal,
+            delim: pandoc_types::definition::ListNumberDelim::Period,
+        };
+        let item1 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "First numbered".to_string(),
+        )])];
+        let item2 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "Second numbered".to_string(),
+        )])];
+        let ordered_list = PandocBlock::OrderedList(attrs, vec![item1, item2]);
+
+        // Convert using visitor
+        let result = visitor.visit_block(&ordered_list).unwrap();
+
+        // Should produce two blocks (two numbered list items)
+        assert_eq!(result.len(), 2);
+
+        // Verify first numbered item
+        match &result[0].block_type {
+            BlockType::NumberedListItem { numbered_list_item } => {
+                assert_eq!(numbered_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    numbered_list_item.rich_text[0].plain_text().unwrap(),
+                    "First numbered"
+                );
+            }
+            _ => panic!("Expected NumberedListItem block type"),
+        }
+
+        // Verify second numbered item
+        match &result[1].block_type {
+            BlockType::NumberedListItem { numbered_list_item } => {
+                assert_eq!(numbered_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    numbered_list_item.rich_text[0].plain_text().unwrap(),
+                    "Second numbered"
+                );
+            }
+            _ => panic!("Expected NumberedListItem block type"),
+        }
+    }
+
+    #[test]
+    fn test_convert_todo_list() {
+        let visitor = PandocToNotionVisitor::new();
+
+        // Create an unchecked todo item inside a bullet list
+        let unchecked_item = vec![PandocBlock::Plain(vec![
+            Inline::Str("☐".to_string()),
+            Inline::Space,
+            Inline::Str("Unchecked task".to_string()),
+        ])];
+        let unchecked_list = PandocBlock::BulletList(vec![unchecked_item]);
+
+        // Convert using visitor
+        let result = visitor.visit_block(&unchecked_list).unwrap();
+
+        // Should produce one block
+        assert_eq!(result.len(), 1);
+
+        // Verify it's a todo block (unchecked)
+        match &result[0].block_type {
+            BlockType::ToDo { to_do } => {
+                assert_eq!(to_do.rich_text.len(), 1);
+                assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "Unchecked task");
+                assert_eq!(to_do.checked, Some(false));
+            }
+            _other => {
+                panic!("Expected ToDo block type");
+            }
+        }
+
+        // Create a checked todo item inside a bullet list
+        let checked_item = vec![PandocBlock::Plain(vec![
+            Inline::Str("☒".to_string()),
+            Inline::Space,
+            Inline::Str("Checked task".to_string()),
+        ])];
+        let checked_list = PandocBlock::BulletList(vec![checked_item]);
+
+        // Convert using visitor
+        let result = visitor.visit_block(&checked_list).unwrap();
+
+        // Should produce one block
+        assert_eq!(result.len(), 1);
+
+        // Verify it's a todo block (checked)
+        match &result[0].block_type {
+            BlockType::ToDo { to_do } => {
+                assert_eq!(to_do.rich_text.len(), 1);
+                assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "Checked task");
+                assert_eq!(to_do.checked, Some(true));
+            }
+            _other => {
+                panic!("Expected ToDo block type");
+            }
+        }
+    }
+
+    #[test]
+    fn test_convert_nested_lists() {
+        let visitor = PandocToNotionVisitor::new();
+
+        // Create a nested list structure: ordered list with a bullet list as a sub-item
+        let nested_item1 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "Nested bullet 1".to_string(),
+        )])];
+        let nested_item2 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "Nested bullet 2".to_string(),
+        )])];
+        let nested_bullet_list = PandocBlock::BulletList(vec![nested_item1, nested_item2]);
+
+        // Parent ordered list with two items, the second containing the nested bullet list
+        let ord_item1 = vec![PandocBlock::Plain(vec![Inline::Str(
+            "Numbered item 1".to_string(),
+        )])];
+        let ord_item2 = vec![
+            PandocBlock::Plain(vec![Inline::Str("Numbered item 2".to_string())]),
+            nested_bullet_list,
+        ];
+
+        let attrs = pandoc_types::definition::ListAttributes {
+            start_number: 1,
+            style: pandoc_types::definition::ListNumberStyle::Decimal,
+            delim: pandoc_types::definition::ListNumberDelim::Period,
+        };
+        let ordered_list = PandocBlock::OrderedList(attrs, vec![ord_item1, ord_item2]);
+
+        // Convert using visitor
+        let result = visitor.visit_block(&ordered_list).unwrap();
+
+        // Should produce 2 top-level blocks (two numbered list items)
+        assert_eq!(result.len(), 2);
+
+        // Verify first numbered item
+        match &result[0].block_type {
+            BlockType::NumberedListItem { numbered_list_item } => {
+                assert_eq!(numbered_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    numbered_list_item.rich_text[0].plain_text().unwrap(),
+                    "Numbered item 1"
+                );
+                assert!(
+                    numbered_list_item.children.is_none()
+                        || numbered_list_item.children.as_ref().unwrap().is_empty()
+                );
+            }
+            _ => panic!("Expected NumberedListItem block type"),
+        }
+
+        // Verify second numbered item with children
+        match &result[1].block_type {
+            BlockType::NumberedListItem { numbered_list_item } => {
+                assert_eq!(numbered_list_item.rich_text.len(), 1);
+                assert_eq!(
+                    numbered_list_item.rich_text[0].plain_text().unwrap(),
+                    "Numbered item 2"
+                );
+
+                // Should have nested children
+                assert!(numbered_list_item.children.is_some());
+                let children = numbered_list_item.children.as_ref().unwrap();
+                assert_eq!(children.len(), 2); // Two bullet items
+
+                // Check first nested bullet
+                match &children[0].block_type {
+                    BlockType::BulletedListItem { bulleted_list_item } => {
+                        assert_eq!(bulleted_list_item.rich_text.len(), 1);
+                        assert_eq!(
+                            bulleted_list_item.rich_text[0].plain_text().unwrap(),
+                            "Nested bullet 1"
+                        );
+                    }
+                    _ => panic!("Expected BulletedListItem for first child"),
+                }
+
+                // Check second nested bullet
+                match &children[1].block_type {
+                    BlockType::BulletedListItem { bulleted_list_item } => {
+                        assert_eq!(bulleted_list_item.rich_text.len(), 1);
+                        assert_eq!(
+                            bulleted_list_item.rich_text[0].plain_text().unwrap(),
+                            "Nested bullet 2"
+                        );
+                    }
+                    _ => panic!("Expected BulletedListItem for second child"),
+                }
+            }
+            _ => panic!("Expected NumberedListItem block type"),
         }
     }
 }

@@ -47,7 +47,7 @@ fn test_notion_to_pandoc_to_notion_roundtrip() {
 
         // Step 2: Convert Pandoc back to Notion
         let roundtrip_notion_blocks = p2n_visitor
-            .convert_blocks(&pandoc_blocks, None)
+            .convert_blocks(&pandoc_blocks)
             .expect("Conversion from Pandoc back to Notion should succeed");
 
         // Step B: Verify the conversion produced some output
@@ -386,7 +386,7 @@ fn test_complex_hierarchy_roundtrip() {
 
     // Step 2: Convert Pandoc back to Notion
     let roundtrip_blocks = p2n_visitor
-        .convert_blocks(&pandoc_blocks, None)
+        .convert_blocks(&pandoc_blocks)
         .expect("Conversion from Pandoc back to Notion should succeed");
 
     // Verify we get 6 blocks back (hierarchy is flattened)
