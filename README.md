@@ -16,6 +16,9 @@ A Rust library for converting [Notion](https://www.notion.so) content to [Pandoc
 - Handle hyperlinks and URL references
 - Proper handling of whitespace and special characters
 - Conversion of Notion's text colors to CSS classes
+- Text processing functionality for various formats (Markdown, HTML, Plain Text, LaTeX, etc.)
+- File-based conversion between different document formats
+- Direct manipulation of Pandoc's Abstract Syntax Tree (AST)
 - Comprehensive test suite ensuring robust conversion
 
 ## Installation
@@ -28,6 +31,41 @@ pandoc-notion = "0.1.0"
 ```
 
 ## Usage
+
+### Text Processing and Format Conversion
+
+```rust
+use pandoc_notion::{create_text_processor, TextFormat};
+use pandoc_notion::prelude::*;
+
+// Create a text processor
+let text_processor = create_text_processor();
+
+// Convert markdown text to Pandoc AST
+let markdown = "# Hello World\n\nThis is **bold** and *italic* text.";
+let ast = text_processor.text_to_ast(markdown, TextFormat::Markdown)?;
+
+// Convert AST to HTML
+let html = text_processor.ast_to_text(&ast, TextFormat::Html)?;
+
+// Direct format conversion
+let latex = text_processor.convert_text(
+    markdown,
+    TextFormat::Markdown,
+    TextFormat::Latex
+)?;
+
+// File-based operations
+text_processor.convert_file("input.md", "output.html")?;
+
+// Working with explicit formats
+text_processor.convert_file_with_format(
+    "input.txt", 
+    "output.rst", 
+    TextFormat::PlainText, 
+    TextFormat::Rst
+)?;
+```
 
 ### Converting Notion Rich Text to Pandoc Inline Elements
 
@@ -70,6 +108,9 @@ let inline_elements = NotionTextConverter::convert(&[formatted_text]);
 - `src/notion/` - Definitions for Notion API data structures
 - `src/n2p/` - Converters from Notion to Pandoc
   - `notion_text.rs` - Converts Notion rich text to Pandoc inline elements
+- `src/text/` - Text processing functionality
+  - `mod.rs` - Core text processing traits and types
+  - `processor.rs` - Pandoc-based implementation of text processing
 
 ## Contributing
 
@@ -89,3 +130,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [Notion API Documentation](https://developers.notion.com/)
 - [Pandoc-types Crate](https://crates.io/crates/pandoc-types)
+- [Pandoc](https://pandoc.org/) - The universal document converter
+
+## Requirements
+
+- [Pandoc](https://pandoc.org/installing.html) must be installed and available in your PATH for text processing functionality
