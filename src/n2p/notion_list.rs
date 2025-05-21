@@ -6,7 +6,11 @@ use pandoc_types::definition::{
 };
 
 /// Convert a Notion bulleted list item to a Pandoc bullet list item
-pub fn convert_notion_bulleted_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+pub fn convert_notion_bulleted_list(
+    block: &NotionBlock, 
+    config: &ConversionConfig,
+    children_blocks: Vec<PandocBlock>
+) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::BulletedListItem { bulleted_list_item } => {
             // Convert rich text to Pandoc inlines
@@ -18,15 +22,29 @@ pub fn convert_notion_bulleted_list(block: &NotionBlock, config: &ConversionConf
             // Create a Plain block with the styled inlines (not Para)
             let plain = PandocBlock::Plain(styled_inlines);
 
+            // Create the content of this list item
+            let mut item_content = vec![plain];
+            
+            // Add nested lists from children to the item content
+            for child in &children_blocks {
+                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
+                    item_content.push(child.clone());
+                }
+            }
+
             // Create a bullet list with a single item
-            Some(PandocBlock::BulletList(vec![vec![plain]]))
+            Some(PandocBlock::BulletList(vec![item_content]))
         }
         _ => None,
     }
 }
 
 /// Convert a Notion numbered list item to a Pandoc ordered list item
-pub fn convert_notion_numbered_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+pub fn convert_notion_numbered_list(
+    block: &NotionBlock, 
+    config: &ConversionConfig,
+    children_blocks: Vec<PandocBlock>
+) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::NumberedListItem { numbered_list_item } => {
             // Convert rich text to Pandoc inlines
@@ -38,6 +56,16 @@ pub fn convert_notion_numbered_list(block: &NotionBlock, config: &ConversionConf
             // Create a Plain block with the styled inlines (not Para)
             let plain = PandocBlock::Plain(styled_inlines);
 
+            // Create the content of this list item
+            let mut item_content = vec![plain];
+            
+            // Add nested lists from children to the item content
+            for child in &children_blocks {
+                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
+                    item_content.push(child.clone());
+                }
+            }
+
             // Create default list attributes (starting at 1)
             let list_attrs = ListAttributes {
                 start_number: 1,
@@ -46,14 +74,18 @@ pub fn convert_notion_numbered_list(block: &NotionBlock, config: &ConversionConf
             };
 
             // Create an ordered list with a single item
-            Some(PandocBlock::OrderedList(list_attrs, vec![vec![plain]]))
+            Some(PandocBlock::OrderedList(list_attrs, vec![item_content]))
         }
         _ => None,
     }
 }
 
 /// Convert a Notion to-do item to a Pandoc bullet list item with checkbox
-pub fn convert_notion_todo(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+pub fn convert_notion_todo(
+    block: &NotionBlock, 
+    config: &ConversionConfig,
+    children_blocks: Vec<PandocBlock>
+) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::ToDo { to_do } => {
             // Create vector for inlines
@@ -84,8 +116,18 @@ pub fn convert_notion_todo(block: &NotionBlock, config: &ConversionConfig) -> Op
             // Create a Plain block with the styled inlines (not Para)
             let plain = PandocBlock::Plain(styled_inlines);
 
+            // Create the content of this list item
+            let mut item_content = vec![plain];
+            
+            // Add nested lists from children to the item content
+            for child in &children_blocks {
+                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
+                    item_content.push(child.clone());
+                }
+            }
+
             // Create a bullet list with a single item - no special attributes needed
-            Some(PandocBlock::BulletList(vec![vec![plain]]))
+            Some(PandocBlock::BulletList(vec![item_content]))
         }
         _ => None,
     }
@@ -112,19 +154,19 @@ fn apply_text_color(inlines: Vec<Inline>, color: &TextColor, config: &Conversion
     vec![Inline::Span(attr, inlines)]
 }
 
-/// Convenience function to convert any block to a bulleted list item if applicable
+/// Convenience function to convert any block to a bulleted list if it is one
 pub fn try_convert_to_bulleted_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
-    convert_notion_bulleted_list(block, config)
+    convert_notion_bulleted_list(block, config, Vec::new())
 }
 
-/// Convenience function to convert any block to a numbered list item if applicable
+/// Convenience function to convert any block to a numbered list if it is one
 pub fn try_convert_to_numbered_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
-    convert_notion_numbered_list(block, config)
+    convert_notion_numbered_list(block, config, Vec::new())
 }
 
-/// Convenience function to convert any block to a to-do item if applicable
+/// Convenience function to convert any block to a todo item if it is one
 pub fn try_convert_to_todo(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
-    convert_notion_todo(block, config)
+    convert_notion_todo(block, config, Vec::new())
 }
 
 #[cfg(test)]
