@@ -1,3 +1,4 @@
+use crate::n2p::notion_code::try_convert_to_code;
 use crate::n2p::notion_heading::try_convert_to_heading;
 use crate::n2p::notion_list::{
     try_convert_to_bulleted_list, try_convert_to_numbered_list, try_convert_to_todo,
@@ -6,8 +7,8 @@ use crate::n2p::notion_paragraph::try_convert_to_paragraph;
 use crate::n2p::notion_quote::try_convert_to_quote;
 use crate::n2p::visitor::NotionBlockVisitor;
 use notion_client::objects::block::{
-    Block as NotionBlock, BlockType, BulletedListItemValue, HeadingsValue, NumberedListItemValue,
-    ParagraphValue, QuoteValue, ToDoValue,
+    Block as NotionBlock, BlockType, BulletedListItemValue, CodeValue, HeadingsValue, 
+    NumberedListItemValue, ParagraphValue, QuoteValue, ToDoValue,
 };
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
 
@@ -36,6 +37,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
             BlockType::Heading2 { heading_2 } => self.visit_heading_2(block, heading_2),
             BlockType::Heading3 { heading_3 } => self.visit_heading_3(block, heading_3),
             BlockType::Quote { quote } => self.visit_quote(block, quote),
+            BlockType::Code { code } => self.visit_code(block, code),
             BlockType::BulletedListItem { bulleted_list_item } => {
                 self.visit_bulleted_list_item(block, bulleted_list_item)
             }
@@ -107,6 +109,17 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
                 // Use the visitor's process_children method to handle children
                 result.extend(self.process_children(children));
             }
+        }
+
+        result
+    }
+
+    fn visit_code(&self, block: &NotionBlock, _code: &CodeValue) -> Vec<PandocBlock> {
+        let mut result = Vec::new();
+
+        // Convert the code block
+        if let Some(pandoc_block) = try_convert_to_code(block) {
+            result.push(pandoc_block);
         }
 
         result
@@ -214,6 +227,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
             }
             BlockType::ToDo { to_do } => to_do.children.clone().unwrap_or_default(),
             BlockType::Quote { quote } => quote.children.clone().unwrap_or_default(),
+            BlockType::Code { code: _ } => Vec::new(), // Code blocks don't have children in Notion API
             _ => Vec::new(),
         }
     }

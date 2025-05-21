@@ -23,6 +23,7 @@
 //! block children are properly processed.
 
 pub mod notion_block_visitor;
+pub mod notion_code;
 pub mod notion_heading;
 pub mod notion_list;
 pub mod notion_paragraph;

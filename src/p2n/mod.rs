@@ -25,6 +25,7 @@
 //! them to appropriate Notion blocks.
 
 pub mod pandoc_block_visitor;
+pub mod pandoc_code;
 pub mod pandoc_heading;
 pub mod pandoc_list;
 pub mod pandoc_paragraph;

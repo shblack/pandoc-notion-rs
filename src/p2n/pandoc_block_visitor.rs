@@ -1,3 +1,4 @@
+use crate::p2n::pandoc_code::PandocCodeConverter;
 use crate::p2n::pandoc_heading::PandocHeadingConverter;
 use crate::p2n::pandoc_list::PandocListConverter;
 use crate::p2n::pandoc_paragraph::PandocParagraphConverter;
@@ -5,7 +6,7 @@ use crate::p2n::pandoc_quote::PandocQuoteConverter;
 use crate::p2n::visitor::PandocBlockVisitor;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, ParagraphValue};
 use notion_client::objects::rich_text::RichText;
-use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
+use pandoc_types::definition::{Attr, Block as PandocBlock, Inline, ListAttributes};
 use std::error::Error;
 
 /// Concrete implementation of the PandocBlockVisitor for converting Pandoc blocks to Notion
@@ -14,6 +15,7 @@ pub struct PandocToNotionVisitor {
     heading_converter: PandocHeadingConverter,
     list_converter: PandocListConverter,
     quote_converter: PandocQuoteConverter,
+    code_converter: PandocCodeConverter,
 }
 
 impl PandocToNotionVisitor {
@@ -24,6 +26,7 @@ impl PandocToNotionVisitor {
             heading_converter: PandocHeadingConverter::new(),
             list_converter: PandocListConverter::new(),
             quote_converter: PandocQuoteConverter::new(),
+            code_converter: PandocCodeConverter::new(),
         }
     }
 
@@ -52,6 +55,7 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
             PandocBlock::BlockQuote(blocks) => self.visit_block_quote(blocks),
             PandocBlock::BulletList(items) => self.visit_bullet_list(items),
             PandocBlock::OrderedList(attrs, items) => self.visit_ordered_list(attrs, items),
+            PandocBlock::CodeBlock(attr, content) => self.visit_code_block(attr, content),
             _ => self.visit_unsupported(block),
         }
     }
@@ -140,7 +144,7 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
 
     fn visit_ordered_list(
         &self,
-        attrs: &pandoc_types::definition::ListAttributes,
+        attrs: &ListAttributes,
         items: &[Vec<PandocBlock>],
     ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         let mut result = Vec::new();
@@ -201,7 +205,19 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
     ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Convert the block quote using our quote converter
         let quote_block = self.quote_converter.convert(blocks)?;
+        
         Ok(vec![quote_block])
+    }
+
+    fn visit_code_block(
+        &self,
+        attr: &Attr,
+        content: &str,
+    ) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+        // Convert the code block using our code converter
+        let code_block = self.code_converter.convert(attr, content)?;
+        
+        Ok(vec![code_block])
     }
 
     fn visit_unsupported(&self, block: &PandocBlock) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
@@ -338,14 +354,11 @@ mod tests {
     fn test_convert_unsupported() {
         let visitor = PandocToNotionVisitor::new();
 
-        // Create an unsupported block type (Code block)
-        let code_block = PandocBlock::CodeBlock(
-            Attr::default(),
-            "function test() { return true; }".to_string(),
-        );
+        // Create an unsupported block type (HorizontalRule)
+        let unsupported_block = PandocBlock::HorizontalRule;
 
         // Convert using visitor
-        let result = visitor.visit_block(&code_block).unwrap();
+        let result = visitor.visit_block(&unsupported_block).unwrap();
 
         // Should produce a single block
         assert_eq!(result.len(), 1);
@@ -356,7 +369,7 @@ mod tests {
                 assert_eq!(paragraph.rich_text.len(), 1);
                 let text = paragraph.rich_text[0].plain_text().unwrap();
                 assert!(text.contains("Unsupported Pandoc block type"));
-                assert!(text.contains("CodeBlock"));
+                assert!(text.contains("HorizontalRule"));
             }
             _ => panic!("Expected Paragraph block type"),
         }

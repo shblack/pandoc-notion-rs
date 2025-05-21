@@ -1,5 +1,5 @@
 use notion_client::objects::block::{
-    Block as NotionBlock, BulletedListItemValue, HeadingsValue, NumberedListItemValue,
+    Block as NotionBlock, BulletedListItemValue, CodeValue, HeadingsValue, NumberedListItemValue,
     ParagraphValue, QuoteValue, ToDoValue,
 };
 use pandoc_types::definition::Block as PandocBlock;
@@ -16,6 +16,7 @@ pub trait NotionBlockVisitor {
     fn visit_heading_2(&self, block: &NotionBlock, heading: &HeadingsValue) -> Vec<PandocBlock>;
     fn visit_heading_3(&self, block: &NotionBlock, heading: &HeadingsValue) -> Vec<PandocBlock>;
     fn visit_quote(&self, block: &NotionBlock, quote: &QuoteValue) -> Vec<PandocBlock>;
+    fn visit_code(&self, block: &NotionBlock, code: &CodeValue) -> Vec<PandocBlock>;
     fn visit_bulleted_list_item(
         &self,
         block: &NotionBlock,

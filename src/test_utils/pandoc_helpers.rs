@@ -9,7 +9,7 @@ pub mod test {
     /// 
     /// # Example
     /// ```
-    /// use crate::test_utils::pandoc_helpers::test::extract_text_from_inlines;
+    /// use pandoc_notion::test_utils::pandoc_helpers::test::extract_text_from_inlines;
     /// use pandoc_types::definition::Inline;
     /// 
     /// let inlines = vec![Inline::Str("Hello".to_string()), Inline::Space, Inline::Str("world".to_string())];

@@ -162,6 +162,17 @@ impl PandocTextConverter {
         self.convert_elements(elements, &mut builder)?;
         builder.build()
     }
+    
+    /// Convert a plain text string to Notion rich text objects
+    pub fn convert_plain_text(&self, text: &str) -> Result<Vec<RichText>, ConversionError> {
+        // Create a single Inline::Str element from the plain text
+        let inline = Inline::Str(text.to_string());
+        
+        // Use the existing conversion logic
+        let mut builder = TextBuilder::new();
+        self.convert_elements(&[inline], &mut builder)?;
+        builder.build()
+    }
 
     /// Convert a list of elements with a specific formatting applied
     fn convert_with_formatting<F>(
