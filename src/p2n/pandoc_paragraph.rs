@@ -1,4 +1,4 @@
-use crate::p2n::pandoc_text::{ConversionError, PandocTextConverter};
+use crate::p2n::pandoc_text::PandocTextConverter;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, ParagraphValue, TextColor};
 use notion_client::objects::rich_text::RichText;
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
@@ -66,7 +66,7 @@ impl NotionParagraphBuilder {
         // Create parent if specified
         let parent = self.parent_id.map(|id| {
             use notion_client::objects::parent::Parent;
-            Parent::page_id(id)
+            Parent::PageId { page_id: id }
         });
 
         // Create has_children flag
@@ -77,8 +77,8 @@ impl NotionParagraphBuilder {
         };
 
         NotionBlock {
-            object: "block".to_string(),
-            id: String::new(), // Will be filled by Notion API
+            object: Some("block".to_string()),
+            id: Some(String::new()), // Will be filled by Notion API
             parent,
             created_time: None,
             created_by: None,

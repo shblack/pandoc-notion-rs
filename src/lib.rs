@@ -6,6 +6,8 @@
 // Main modules
 pub mod n2p;
 pub mod p2n;
+#[cfg(test)]
+pub mod test_utils;
 
 // Re-export only the essential types for convenience
 

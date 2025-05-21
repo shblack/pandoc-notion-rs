@@ -1,4 +1,3 @@
-use crate::n2p::block_converter::convert_blocks;
 use crate::n2p::notion_text::NotionTextConverter;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, ParagraphValue, TextColor};
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
@@ -35,41 +34,22 @@ impl ParagraphBuilder {
 }
 
 /// Convert a Notion paragraph to a Pandoc paragraph
-pub fn convert_notion_paragraph(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
-    // Create text converter
-    let text_converter = NotionTextConverter;
-
+pub fn convert_notion_paragraph(block: &NotionBlock) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::Paragraph { paragraph } => {
-            let mut result = Vec::new();
+            // Only convert the main paragraph without handling children
+            let main_para = build_paragraph_from_notion(paragraph);
 
-            // Convert the main paragraph
-            let main_para = build_paragraph_from_notion(paragraph, &text_converter);
-            result.push(main_para);
-
-            // Handle any children (nested blocks)
-            if let Some(children) = &paragraph.children {
-                if !children.is_empty() {
-                    // Convert children to Pandoc blocks and add them after the paragraph
-                    let child_blocks = convert_blocks(children);
-                    result.extend(child_blocks);
-                }
-            }
-
-            Some(result)
+            // Return just the paragraph - children will be handled by visitor
+            Some(main_para)
         }
         _ => None,
     }
 }
-
 /// Helper function to build a paragraph from Notion paragraph data
-fn build_paragraph_from_notion(
-    paragraph: &ParagraphValue,
-    text_converter: &NotionTextConverter,
-) -> PandocBlock {
+fn build_paragraph_from_notion(paragraph: &ParagraphValue) -> PandocBlock {
     // Convert rich_text to Pandoc inlines using NotionTextConverter
-    let inlines = text_converter.convert(&paragraph.rich_text);
-
+    let inlines = NotionTextConverter::convert(&paragraph.rich_text);
     // In Pandoc, paragraph styling is handled at the inline level,
     // so we would need to wrap content in Span elements with attributes
     // if we want to preserve Notion's paragraph color
@@ -102,6 +82,6 @@ fn handle_paragraph_color(inlines: Vec<Inline>, color: &TextColor) -> Vec<Inline
 }
 
 /// Convenience function to directly convert any block to a paragraph if it is one
-pub fn try_convert_to_paragraph(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
+pub fn try_convert_to_paragraph(block: &NotionBlock) -> Option<PandocBlock> {
     convert_notion_paragraph(block)
 }

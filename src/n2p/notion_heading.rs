@@ -81,18 +81,15 @@ impl HeadingBuilder {
 
 /// Convert a Notion heading to a Pandoc heading
 pub fn convert_notion_heading(block: &NotionBlock) -> Option<PandocBlock> {
-    // Create text converter
-    let text_converter = NotionTextConverter;
-
     match &block.block_type {
         BlockType::Heading1 { heading_1 } => {
-            Some(build_heading_from_notion(heading_1, 1, &text_converter))
+            Some(build_heading_from_notion(heading_1, 1))
         }
         BlockType::Heading2 { heading_2 } => {
-            Some(build_heading_from_notion(heading_2, 2, &text_converter))
+            Some(build_heading_from_notion(heading_2, 2))
         }
         BlockType::Heading3 { heading_3 } => {
-            Some(build_heading_from_notion(heading_3, 3, &text_converter))
+            Some(build_heading_from_notion(heading_3, 3))
         }
         _ => None,
     }
@@ -102,10 +99,9 @@ pub fn convert_notion_heading(block: &NotionBlock) -> Option<PandocBlock> {
 fn build_heading_from_notion(
     heading: &HeadingsValue,
     level: i32,
-    text_converter: &NotionTextConverter,
 ) -> PandocBlock {
     // Convert rich text to inlines using NotionTextConverter
-    let inlines = text_converter.convert(&heading.rich_text);
+    let inlines = NotionTextConverter::convert(&heading.rich_text);
 
     let mut builder = HeadingBuilder::new().level(level).rich_text(inlines);
 

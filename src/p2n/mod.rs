@@ -13,11 +13,19 @@
 //! - Handle hyperlinks and URL references
 //! - Preserve whitespace and line breaks
 //! - Convert Pandoc spans with CSS classes to Notion text colors
+//! - Support for paragraphs and headings with visitor pattern
 //!
 //! ## Architecture
 //!
 //! The conversion process uses a non-recursive approach to handle nested elements,
 //! avoiding circular references. A TextBuilder helps construct Notion rich text
 //! objects (from notion-client crate) with the appropriate formatting and attributes.
+//! 
+//! The visitor pattern is implemented to traverse Pandoc block elements and convert
+//! them to appropriate Notion blocks.
 
 pub mod pandoc_text;
+pub mod pandoc_heading;
+pub mod pandoc_paragraph;
+pub mod visitor;
+pub mod pandoc_block_visitor;
