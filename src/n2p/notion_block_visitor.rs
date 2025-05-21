@@ -6,6 +6,7 @@ use crate::n2p::notion_list::{
 use crate::n2p::notion_paragraph::try_convert_to_paragraph;
 use crate::n2p::notion_quote::try_convert_to_quote;
 use crate::n2p::visitor::NotionBlockVisitor;
+use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{
     Block as NotionBlock, BlockType, BulletedListItemValue, CodeValue, HeadingsValue, 
     NumberedListItemValue, ParagraphValue, QuoteValue, ToDoValue,
@@ -13,12 +14,21 @@ use notion_client::objects::block::{
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
 
 /// Concrete implementation of the NotionBlockVisitor for converting Notion blocks to Pandoc
-pub struct NotionToPandocVisitor;
+pub struct NotionToPandocVisitor {
+    config: ConversionConfig,
+}
 
 impl NotionToPandocVisitor {
-    /// Create a new visitor
+    /// Create a new visitor with default configuration
     pub fn new() -> Self {
-        Self {}
+        Self {
+            config: ConversionConfig::default(),
+        }
+    }
+    
+    /// Create a new visitor with specific configuration
+    pub fn with_config(config: ConversionConfig) -> Self {
+        Self { config }
     }
 
     /// Convert a list of Notion blocks to Pandoc blocks
@@ -53,7 +63,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let mut result = Vec::new();
 
         // Use existing paragraph converter
-        if let Some(pandoc_block) = try_convert_to_paragraph(block) {
+        if let Some(pandoc_block) = try_convert_to_paragraph(block, &self.config) {
             result.push(pandoc_block);
         }
 
@@ -70,7 +80,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
 
     fn visit_heading_1(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
         // Use existing heading converter
-        if let Some(pandoc_block) = try_convert_to_heading(block) {
+        if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
             vec![pandoc_block]
         } else {
             vec![]
@@ -79,7 +89,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
 
     fn visit_heading_2(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
         // Use existing heading converter
-        if let Some(pandoc_block) = try_convert_to_heading(block) {
+        if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
             vec![pandoc_block]
         } else {
             vec![]
@@ -88,7 +98,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
 
     fn visit_heading_3(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
         // Use existing heading converter
-        if let Some(pandoc_block) = try_convert_to_heading(block) {
+        if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
             vec![pandoc_block]
         } else {
             vec![]
@@ -99,7 +109,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let mut result = Vec::new();
 
         // Convert the main quote
-        if let Some(pandoc_block) = try_convert_to_quote(block) {
+        if let Some(pandoc_block) = try_convert_to_quote(block, &self.config) {
             result.push(pandoc_block);
         }
 
@@ -118,7 +128,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let mut result = Vec::new();
 
         // Convert the code block
-        if let Some(pandoc_block) = try_convert_to_code(block) {
+        if let Some(pandoc_block) = try_convert_to_code(block, &self.config) {
             result.push(pandoc_block);
         }
 
@@ -135,7 +145,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     ) -> Vec<PandocBlock> {
         let mut result = Vec::new();
 
-        if let Some(list_block) = try_convert_to_bulleted_list(block) {
+        if let Some(list_block) = try_convert_to_bulleted_list(block, &self.config) {
             result.push(list_block);
         }
 
@@ -156,7 +166,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     ) -> Vec<PandocBlock> {
         let mut result = Vec::new();
 
-        if let Some(list_block) = try_convert_to_numbered_list(block) {
+        if let Some(list_block) = try_convert_to_numbered_list(block, &self.config) {
             result.push(list_block);
         }
 
@@ -173,7 +183,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     fn visit_todo(&self, block: &NotionBlock, todo: &ToDoValue) -> Vec<PandocBlock> {
         let mut result = Vec::new();
 
-        if let Some(todo_block) = try_convert_to_todo(block) {
+        if let Some(todo_block) = try_convert_to_todo(block, &self.config) {
             result.push(todo_block);
         }
 
@@ -190,10 +200,14 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     fn visit_unsupported(&self, block: &NotionBlock) -> Vec<PandocBlock> {
         // Create a comment indicating an unsupported block
         let block_type = format!("{:?}", block.block_type);
-        let attr = Attr {
-            identifier: "".to_string(),
-            classes: vec!["unsupported-block".to_string()],
-            attributes: vec![("data-block-type".to_string(), block_type)],
+        let attr = if self.config.preserve_attributes {
+            Attr {
+                identifier: "".to_string(),
+                classes: vec!["unsupported-block".to_string()],
+                attributes: vec![("data-block-type".to_string(), block_type)],
+            }
+        } else {
+            Attr::default()
         };
 
         vec![PandocBlock::Div(

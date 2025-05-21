@@ -1,18 +1,19 @@
 use crate::n2p::notion_text::NotionTextConverter;
+use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, TextColor};
 use pandoc_types::definition::{
     Attr, Block as PandocBlock, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
 };
 
 /// Convert a Notion bulleted list item to a Pandoc bullet list item
-pub fn convert_notion_bulleted_list(block: &NotionBlock) -> Option<PandocBlock> {
+pub fn convert_notion_bulleted_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::BulletedListItem { bulleted_list_item } => {
             // Convert rich text to Pandoc inlines
             let inlines = NotionTextConverter::convert(&bulleted_list_item.rich_text);
 
             // Apply color formatting if needed
-            let styled_inlines = apply_text_color(inlines, &bulleted_list_item.color);
+            let styled_inlines = apply_text_color(inlines, &bulleted_list_item.color, config);
 
             // Create a Plain block with the styled inlines (not Para)
             let plain = PandocBlock::Plain(styled_inlines);
@@ -25,14 +26,14 @@ pub fn convert_notion_bulleted_list(block: &NotionBlock) -> Option<PandocBlock> 
 }
 
 /// Convert a Notion numbered list item to a Pandoc ordered list item
-pub fn convert_notion_numbered_list(block: &NotionBlock) -> Option<PandocBlock> {
+pub fn convert_notion_numbered_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::NumberedListItem { numbered_list_item } => {
             // Convert rich text to Pandoc inlines
             let inlines = NotionTextConverter::convert(&numbered_list_item.rich_text);
 
             // Apply color formatting if needed
-            let styled_inlines = apply_text_color(inlines, &numbered_list_item.color);
+            let styled_inlines = apply_text_color(inlines, &numbered_list_item.color, config);
 
             // Create a Plain block with the styled inlines (not Para)
             let plain = PandocBlock::Plain(styled_inlines);
@@ -52,7 +53,7 @@ pub fn convert_notion_numbered_list(block: &NotionBlock) -> Option<PandocBlock> 
 }
 
 /// Convert a Notion to-do item to a Pandoc bullet list item with checkbox
-pub fn convert_notion_todo(block: &NotionBlock) -> Option<PandocBlock> {
+pub fn convert_notion_todo(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::ToDo { to_do } => {
             // Create vector for inlines
@@ -75,7 +76,7 @@ pub fn convert_notion_todo(block: &NotionBlock) -> Option<PandocBlock> {
 
             // Apply color formatting if needed
             let styled_inlines = if let Some(color) = &to_do.color {
-                apply_text_color(inlines, color)
+                apply_text_color(inlines, color, config)
             } else {
                 inlines
             };
@@ -91,16 +92,20 @@ pub fn convert_notion_todo(block: &NotionBlock) -> Option<PandocBlock> {
 }
 
 /// Apply text color to inlines
-fn apply_text_color(inlines: Vec<Inline>, color: &TextColor) -> Vec<Inline> {
+fn apply_text_color(inlines: Vec<Inline>, color: &TextColor, config: &ConversionConfig) -> Vec<Inline> {
     if inlines.is_empty() {
         return Vec::new();
     }
 
-    // Create attributes for the color
-    let attr = Attr {
-        identifier: String::new(),
-        classes: Vec::new(),
-        attributes: vec![("data-color".to_string(), format!("{:?}", color))],
+    // Create attributes based on configuration
+    let attr = if config.preserve_attributes {
+        Attr {
+            identifier: String::new(),
+            classes: Vec::new(),
+            attributes: vec![("data-color".to_string(), format!("{:?}", color))],
+        }
+    } else {
+        Attr::default()
     };
 
     // Return a single Span containing all inlines
@@ -108,18 +113,18 @@ fn apply_text_color(inlines: Vec<Inline>, color: &TextColor) -> Vec<Inline> {
 }
 
 /// Convenience function to convert any block to a bulleted list item if applicable
-pub fn try_convert_to_bulleted_list(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_bulleted_list(block)
+pub fn try_convert_to_bulleted_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_bulleted_list(block, config)
 }
 
 /// Convenience function to convert any block to a numbered list item if applicable
-pub fn try_convert_to_numbered_list(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_numbered_list(block)
+pub fn try_convert_to_numbered_list(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_numbered_list(block, config)
 }
 
 /// Convenience function to convert any block to a to-do item if applicable
-pub fn try_convert_to_todo(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_todo(block)
+pub fn try_convert_to_todo(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_todo(block, config)
 }
 
 #[cfg(test)]

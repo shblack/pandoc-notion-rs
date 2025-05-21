@@ -8,7 +8,6 @@
 use pandoc_notion::{create_text_processor, TextFormat};
 use pandoc_notion::prelude::*;
 use std::error::Error;
-use std::path::Path;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn Error>> {

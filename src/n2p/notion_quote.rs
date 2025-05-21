@@ -1,4 +1,5 @@
 use crate::n2p::notion_text::NotionTextConverter;
+use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, QuoteValue, TextColor};
 use pandoc_types::definition::{Block as PandocBlock, Inline};
 
@@ -34,10 +35,10 @@ impl QuoteBuilder {
 }
 
 /// Convert a Notion quote to a Pandoc block quote
-pub fn convert_notion_quote(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
+pub fn convert_notion_quote(block: &NotionBlock, config: &ConversionConfig) -> Option<Vec<PandocBlock>> {
     match &block.block_type {
         BlockType::Quote { quote } => {
-            let main_quote = build_quote_from_notion(quote);
+            let main_quote = build_quote_from_notion(quote, config);
 
             // We only return the main quote block here
             // Children will be processed by the visitor separately
@@ -48,12 +49,12 @@ pub fn convert_notion_quote(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
 }
 
 /// Helper function to build a block quote from Notion quote data
-fn build_quote_from_notion(quote: &QuoteValue) -> PandocBlock {
+fn build_quote_from_notion(quote: &QuoteValue, config: &ConversionConfig) -> PandocBlock {
     // Convert rich_text to Pandoc inlines
     let inlines = NotionTextConverter::convert(&quote.rich_text);
 
     // Map Notion color attribute to pandoc Attr
-    let processed_inlines = handle_quote_color(inlines, &quote.color);
+    let processed_inlines = handle_quote_color(inlines, &quote.color, config);
 
     // Create a paragraph from the processed inlines
     let paragraph = PandocBlock::Para(processed_inlines);
@@ -65,17 +66,21 @@ fn build_quote_from_notion(quote: &QuoteValue) -> PandocBlock {
 }
 
 /// Handle quote color by wrapping content in an appropriate Span
-fn handle_quote_color(inlines: Vec<Inline>, color: &TextColor) -> Vec<Inline> {
+fn handle_quote_color(inlines: Vec<Inline>, color: &TextColor, config: &ConversionConfig) -> Vec<Inline> {
     // If there are no inlines, just return empty vector
     if inlines.is_empty() {
         return Vec::new();
     }
 
-    // Create attributes for the color
-    let attr = pandoc_types::definition::Attr {
-        identifier: String::new(),
-        classes: Vec::new(),
-        attributes: vec![("data-color".to_string(), format!("{:?}", color))],
+    // Create attributes based on configuration
+    let attr = if config.preserve_attributes {
+        pandoc_types::definition::Attr {
+            identifier: String::new(),
+            classes: Vec::new(),
+            attributes: vec![("data-color".to_string(), format!("{:?}", color))],
+        }
+    } else {
+        pandoc_types::definition::Attr::default()
     };
 
     // Return a single Span containing all inlines
@@ -83,6 +88,6 @@ fn handle_quote_color(inlines: Vec<Inline>, color: &TextColor) -> Vec<Inline> {
 }
 
 /// Convenience function to directly convert any block to a quote if it is one
-pub fn try_convert_to_quote(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_quote(block).map(|blocks| blocks[0].clone())
+pub fn try_convert_to_quote(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_quote(block, config).map(|blocks| blocks[0].clone())
 }

@@ -56,7 +56,7 @@ impl NotionCodeBuilder {
 
         NotionBlock {
             object: Some("block".to_string()),
-            id: Some(String::new()), // Will be filled by Notion API
+            id: None, // Allow Notion API to generate a new UUID
             parent: None,
             created_time: None,
             created_by: None,

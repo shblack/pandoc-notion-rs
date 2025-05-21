@@ -22,6 +22,22 @@
 //! formatting and semantic structure. The recursive traversal ensures that all nested
 //! block children are properly processed.
 
+/// Configuration for the Notion to Pandoc conversion process
+#[derive(Debug, Clone)]
+pub struct ConversionConfig {
+    /// Whether to preserve Notion-specific attributes in Pandoc output
+    /// When false, attributes are left blank (default)
+    pub preserve_attributes: bool,
+}
+
+impl Default for ConversionConfig {
+    fn default() -> Self {
+        Self {
+            preserve_attributes: false,
+        }
+    }
+}
+
 pub mod notion_block_visitor;
 pub mod notion_code;
 pub mod notion_heading;
@@ -30,3 +46,7 @@ pub mod notion_paragraph;
 pub mod notion_quote;
 pub mod notion_text;
 pub mod visitor;
+
+// Re-export key traits and implementations
+pub use visitor::NotionBlockVisitor;
+pub use notion_block_visitor::NotionToPandocVisitor;

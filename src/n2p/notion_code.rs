@@ -1,3 +1,4 @@
+use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, CodeValue, Language};
 use pandoc_types::definition::{Attr, Block as PandocBlock};
 
@@ -48,21 +49,30 @@ impl CodeBuilder {
     }
 
     /// Build the Pandoc CodeBlock
-    pub fn build(self) -> PandocBlock {
-        let attr = Attr {
-            identifier: self.identifier,
-            classes: self.classes,
-            attributes: self.attributes,
+    pub fn build(self, config: &ConversionConfig) -> PandocBlock {
+        let attr = if config.preserve_attributes {
+            Attr {
+                identifier: self.identifier,
+                classes: self.classes,
+                attributes: self.attributes,
+            }
+        } else {
+            // Empty attributes when not preserving, but always keep language class
+            Attr {
+                identifier: String::new(),
+                classes: self.classes,
+                attributes: Vec::new(),
+            }
         };
         PandocBlock::CodeBlock(attr, self.content)
     }
 }
 
 /// Convert a Notion code block to a Pandoc code block
-pub fn convert_notion_code(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
+pub fn convert_notion_code(block: &NotionBlock, config: &ConversionConfig) -> Option<Vec<PandocBlock>> {
     match &block.block_type {
         BlockType::Code { code } => {
-            let code_block = build_code_from_notion(code);
+            let code_block = build_code_from_notion(code, config);
             Some(vec![code_block])
         }
         _ => None,
@@ -70,7 +80,7 @@ pub fn convert_notion_code(block: &NotionBlock) -> Option<Vec<PandocBlock>> {
 }
 
 /// Helper function to build a code block from Notion code data
-fn build_code_from_notion(code: &CodeValue) -> PandocBlock {
+fn build_code_from_notion(code: &CodeValue, config: &ConversionConfig) -> PandocBlock {
     // Convert rich text to plain text for code content
     let content = code.rich_text.iter()
         .map(|rt| rt.plain_text().unwrap_or_default())
@@ -83,7 +93,7 @@ fn build_code_from_notion(code: &CodeValue) -> PandocBlock {
     CodeBuilder::new()
         .language(language_str)
         .content(&content)
-        .build()
+        .build(config)
 }
 
 /// Convert Notion language enum to Pandoc language string
@@ -166,14 +176,20 @@ fn convert_notion_language(language: &Language) -> &str {
 }
 
 /// Convenience function to directly convert any block to a code block if it is one
-pub fn try_convert_to_code(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_code(block).map(|blocks| blocks[0].clone())
+pub fn try_convert_to_code(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_code(block, config).map(|blocks| blocks[0].clone())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::n2p::ConversionConfig;
     use notion_client::objects::rich_text::{RichText, Text};
+
+    // Test configuration for all tests
+    fn test_config() -> ConversionConfig {
+        ConversionConfig { preserve_attributes: true }
+    }
 
     // Helper function to create a rich text element for testing
     fn create_rich_text(content: &str) -> RichText {
@@ -219,7 +235,7 @@ mod tests {
         let code_block = create_code_block(content, Language::Rust);
 
         // Convert to Pandoc
-        let result = convert_notion_code(&code_block);
+        let result = convert_notion_code(&code_block, &test_config());
         assert!(result.is_some());
 
         let blocks = result.unwrap();
@@ -249,7 +265,7 @@ mod tests {
         let code_block = create_code_block(content, Language::Python);
 
         // Convert using convenience function
-        let result = try_convert_to_code(&code_block);
+        let result = try_convert_to_code(&code_block, &test_config());
         assert!(result.is_some());
 
         // Verify the content and structure of the Pandoc block
@@ -284,7 +300,7 @@ mod tests {
             .identifier("test-code")
             .attribute("data-line", "2");
 
-        let block = builder.build();
+        let block = builder.build(&test_config());
 
         match block {
             PandocBlock::CodeBlock(attr, content) => {
@@ -320,7 +336,7 @@ mod tests {
         };
 
         // Try to convert it
-        let result = try_convert_to_code(&paragraph);
+        let result = try_convert_to_code(&paragraph, &test_config());
         
         // Should return None since it's not a code block
         assert!(result.is_none());

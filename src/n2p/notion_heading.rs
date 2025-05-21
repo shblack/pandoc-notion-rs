@@ -1,4 +1,5 @@
 use crate::n2p::notion_text::NotionTextConverter;
+use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{Block as NotionBlock, BlockType, HeadingsValue};
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
 
@@ -80,16 +81,16 @@ impl HeadingBuilder {
 }
 
 /// Convert a Notion heading to a Pandoc heading
-pub fn convert_notion_heading(block: &NotionBlock) -> Option<PandocBlock> {
+pub fn convert_notion_heading(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
     match &block.block_type {
         BlockType::Heading1 { heading_1 } => {
-            Some(build_heading_from_notion(heading_1, 1))
+            Some(build_heading_from_notion(heading_1, 1, config))
         }
         BlockType::Heading2 { heading_2 } => {
-            Some(build_heading_from_notion(heading_2, 2))
+            Some(build_heading_from_notion(heading_2, 2, config))
         }
         BlockType::Heading3 { heading_3 } => {
-            Some(build_heading_from_notion(heading_3, 3))
+            Some(build_heading_from_notion(heading_3, 3, config))
         }
         _ => None,
     }
@@ -99,26 +100,30 @@ pub fn convert_notion_heading(block: &NotionBlock) -> Option<PandocBlock> {
 fn build_heading_from_notion(
     heading: &HeadingsValue,
     level: i32,
+    config: &ConversionConfig,
 ) -> PandocBlock {
     // Convert rich text to inlines using NotionTextConverter
     let inlines = NotionTextConverter::convert(&heading.rich_text);
 
     let mut builder = HeadingBuilder::new().level(level).rich_text(inlines);
 
-    // Add a unique identifier based on text content (for anchor links)
-    if !heading.rich_text.is_empty() {
-        let id = generate_heading_id(&heading.rich_text);
-        builder = builder.identifier(id);
-    }
+    // Only add attributes if preserve_attributes is true
+    if config.preserve_attributes {
+        // Add a unique identifier based on text content (for anchor links)
+        if !heading.rich_text.is_empty() {
+            let id = generate_heading_id(&heading.rich_text);
+            builder = builder.identifier(id);
+        }
 
-    // Handle Notion's color if present
-    if let Some(color) = &heading.color {
-        builder = builder.add_attribute("data-color".to_string(), format!("{:?}", color));
-    }
+        // Handle Notion's color if present
+        if let Some(color) = &heading.color {
+            builder = builder.add_attribute("data-color".to_string(), format!("{:?}", color));
+        }
 
-    // Handle Notion's toggleable feature
-    if let Some(true) = heading.is_toggleable {
-        builder = builder.add_class("toggleable".to_string());
+        // Handle Notion's toggleable feature
+        if let Some(true) = heading.is_toggleable {
+            builder = builder.add_class("toggleable".to_string());
+        }
     }
 
     builder.build()
@@ -147,6 +152,6 @@ fn generate_heading_id(rich_text: &[notion_client::objects::rich_text::RichText]
 }
 
 /// Convenience function to directly convert any block to a heading if it is one
-pub fn try_convert_to_heading(block: &NotionBlock) -> Option<PandocBlock> {
-    convert_notion_heading(block)
+pub fn try_convert_to_heading(block: &NotionBlock, config: &ConversionConfig) -> Option<PandocBlock> {
+    convert_notion_heading(block, config)
 }

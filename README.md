@@ -19,6 +19,7 @@ A Rust library for converting [Notion](https://www.notion.so) content to [Pandoc
 - Text processing functionality for various formats (Markdown, HTML, Plain Text, LaTeX, etc.)
 - File-based conversion between different document formats
 - Direct manipulation of Pandoc's Abstract Syntax Tree (AST)
+- Optional preservation of Notion-specific attributes (colors, block types, etc.)
 - Comprehensive test suite ensuring robust conversion
 
 ## Installation
@@ -80,6 +81,30 @@ let text = create_text("Hello, world!");
 let inline_elements = NotionTextConverter::convert(&[text]);
 
 // Use the inline elements in Pandoc document processing
+```
+
+### Configuring Attribute Preservation
+
+By default, Notion-specific attributes (like colors, block types, etc.) are not preserved in the Pandoc output. You can enable attribute preservation:
+
+```rust
+use pandoc_notion::{create_converter, ConversionConfig};
+use pandoc_notion::prelude::*;
+
+// Create a converter with default settings (no attribute preservation)
+let default_converter = create_converter();
+
+// Create a converter with attribute preservation enabled
+let converter = create_converter()
+    .with_preserve_attributes(true);
+
+// Alternatively, use the full configuration
+let config = ConversionConfig {
+    preserve_attributes: true,
+    ..ConversionConfig::default()
+};
+let custom_converter = create_converter()
+    .with_config(config);
 ```
 
 ### Converting Formatted Text

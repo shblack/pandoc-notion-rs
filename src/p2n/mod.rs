@@ -32,3 +32,7 @@ pub mod pandoc_paragraph;
 pub mod pandoc_quote;
 pub mod pandoc_text;
 pub mod visitor;
+
+// Re-export key traits and implementations
+pub use visitor::PandocBlockVisitor;
+pub use pandoc_block_visitor::PandocToNotionVisitor;
