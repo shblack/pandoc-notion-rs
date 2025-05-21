@@ -390,12 +390,17 @@ mod tests {
 
         let result = visitor.convert_blocks(&[parent]);
 
-        // Should have 3 blocks: parent + 2 children
-        assert_eq!(result.len(), 3);
+        // Should have 1 block: parent with nested children
+        assert_eq!(result.len(), 1);
 
         // Verify parent is a bullet list
         if let PandocBlock::BulletList(items) = &result[0] {
             assert_eq!(items.len(), 1);
+            
+            // The item should have 3 blocks: Plain text + 2 nested bullet lists
+            assert_eq!(items[0].len(), 3);
+            
+            // Check the parent text
             if let PandocBlock::Plain(inlines) = &items[0][0] {
                 assert_eq!(inlines.len(), 1);
                 if let Inline::Span(_, span_inlines) = &inlines[0] {
@@ -407,28 +412,28 @@ mod tests {
             } else {
                 panic!("Expected plain block");
             }
-        } else {
-            panic!("Expected bullet list");
-        }
-
-        // Verify children are also bullet lists
-        for i in 1..3 {
-            if let PandocBlock::BulletList(items) = &result[i] {
-                assert_eq!(items.len(), 1);
-                if let PandocBlock::Plain(inlines) = &items[0][0] {
-                    assert_eq!(inlines.len(), 1);
-                    if let Inline::Span(_, span_inlines) = &inlines[0] {
-                        // Verify the text content
-                        assert_inlines_text_eq(span_inlines, &format!("Child item {}", i));
+            
+            // Verify the two nested bullet lists
+            for i in 1..3 {
+                if let PandocBlock::BulletList(nested_items) = &items[0][i] {
+                    assert_eq!(nested_items.len(), 1);
+                    if let PandocBlock::Plain(inlines) = &nested_items[0][0] {
+                        assert_eq!(inlines.len(), 1);
+                        if let Inline::Span(_, span_inlines) = &inlines[0] {
+                            // Verify the text content
+                            assert_inlines_text_eq(span_inlines, &format!("Child item {}", i));
+                        } else {
+                            panic!("Expected span");
+                        }
                     } else {
-                        panic!("Expected span");
+                        panic!("Expected plain block");
                     }
                 } else {
-                    panic!("Expected plain block");
+                    panic!("Expected bullet list");
                 }
-            } else {
-                panic!("Expected bullet list");
             }
+        } else {
+            panic!("Expected bullet list");
         }
     }
 
@@ -445,29 +450,67 @@ mod tests {
         // Convert the parent
         let result = visitor.convert_blocks(&[parent]);
 
-        // Should have 3 blocks: parent + child + grandchild
-        assert_eq!(result.len(), 3);
+        // Should have 1 block: parent with nested children
+        assert_eq!(result.len(), 1);
 
-        // Verify items at each level
-        let expected_texts = ["Parent item", "Child item", "Grandchild item"];
-
-        for (i, expected) in expected_texts.iter().enumerate() {
-            if let PandocBlock::BulletList(items) = &result[i] {
-                assert_eq!(items.len(), 1);
-                if let PandocBlock::Plain(inlines) = &items[0][0] {
+        // Verify the parent list
+        if let PandocBlock::BulletList(parent_items) = &result[0] {
+            assert_eq!(parent_items.len(), 1);
+            assert_eq!(parent_items[0].len(), 2); // Plain text + nested list
+            
+            // Check parent text
+            if let PandocBlock::Plain(inlines) = &parent_items[0][0] {
+                assert_eq!(inlines.len(), 1);
+                if let Inline::Span(_, span_inlines) = &inlines[0] {
+                    assert_inlines_text_eq(span_inlines, "Parent item");
+                } else {
+                    panic!("Expected span");
+                }
+            } else {
+                panic!("Expected plain block");
+            }
+            
+            // Check the child list
+            if let PandocBlock::BulletList(child_items) = &parent_items[0][1] {
+                assert_eq!(child_items.len(), 1);
+                assert_eq!(child_items[0].len(), 2); // Plain text + nested list
+                
+                // Check child text
+                if let PandocBlock::Plain(inlines) = &child_items[0][0] {
                     assert_eq!(inlines.len(), 1);
                     if let Inline::Span(_, span_inlines) = &inlines[0] {
-                        // Verify the text content
-                        assert_inlines_text_eq(span_inlines, expected);
+                        assert_inlines_text_eq(span_inlines, "Child item");
                     } else {
                         panic!("Expected span");
                     }
                 } else {
                     panic!("Expected plain block");
                 }
+                
+                // Check the grandchild list
+                if let PandocBlock::BulletList(grandchild_items) = &child_items[0][1] {
+                    assert_eq!(grandchild_items.len(), 1);
+                    assert_eq!(grandchild_items[0].len(), 1); // Just plain text, no more nesting
+                    
+                    // Check grandchild text
+                    if let PandocBlock::Plain(inlines) = &grandchild_items[0][0] {
+                        assert_eq!(inlines.len(), 1);
+                        if let Inline::Span(_, span_inlines) = &inlines[0] {
+                            assert_inlines_text_eq(span_inlines, "Grandchild item");
+                        } else {
+                            panic!("Expected span");
+                        }
+                    } else {
+                        panic!("Expected plain block");
+                    }
+                } else {
+                    panic!("Expected bullet list for grandchild");
+                }
             } else {
-                panic!("Expected bullet list");
+                panic!("Expected bullet list for child");
             }
+        } else {
+            panic!("Expected bullet list for parent");
         }
     }
 
