@@ -113,16 +113,15 @@ impl NotionTextConverter {
                     }
                     result.push(Inline::Space);
                 }
-                // Newlines become SoftBreak as they represent normal line wrapping
-                // Explicit line breaks from Notion are handled separately
-                // For newlines, we need to determine if it's a soft break or hard break
-                // We'll interpret newlines as SoftBreak for better compatibility with text formatting
+                // Newlines become LineBreak to ensure proper line separation
+                // This ensures each newline in Notion content creates a visible line break
+                // in the output document rather than soft wrapping
                 '\n' => {
                     if !current_word.is_empty() {
                         result.push(Inline::Str(current_word));
                         current_word = String::new();
                     }
-                    result.push(Inline::SoftBreak);
+                    result.push(Inline::LineBreak);
                 }
                 // All other characters are part of text
                 _ => {
@@ -522,5 +521,26 @@ mod tests {
 
         // Check result
         assert_eq!(result, "Hello world");
+    }
+
+    #[test]
+    fn test_newline_to_linebreak() {
+        // Create rich text with newlines
+        let rich_text = create_text_rich_text("Line 1\nLine 2\nLine 3", None, None);
+        
+        // Convert to Pandoc inlines
+        let result = NotionTextConverter::convert(&[rich_text]);
+        
+        // Expected structure should include LineBreak elements
+        // We expect at least 5 elements: "Line 1", LineBreak, "Line 2", LineBreak, "Line 3"
+        assert!(result.len() >= 5);
+        
+        // Find LineBreak elements and verify they exist
+        let line_breaks = result.iter().filter(|inline| 
+            matches!(inline, Inline::LineBreak)
+        ).count();
+        
+        // Should have at least 2 line breaks
+        assert_eq!(line_breaks, 2, "Expected 2 LineBreak elements");
     }
 }

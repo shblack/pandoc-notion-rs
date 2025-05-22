@@ -305,7 +305,7 @@ impl NotionConverter {
 
         // Create a block fetcher to recursively fetch all blocks including nested children
         let block_fetcher = self.create_block_fetcher()?;
-        let blocks = block_fetcher
+        let fetch_result = block_fetcher
             .fetch_block_with_children(block_id)
             .await
             .map_err(|e| ConversionError::Other(format!("Block fetcher error: {}", e)))?;
@@ -313,14 +313,17 @@ impl NotionConverter {
         debug!("Fetched blocks from Notion (including children)");
 
         // Debug: Print and save the retrieved blocks
-        self.debug_print_notion_blocks(&blocks, 0);
-        let _ = self.debug_save_to_file(&blocks, "debug_notion_blocks.json");
+        self.debug_print_notion_blocks(&fetch_result.blocks, 0);
+        let _ = self.debug_save_to_file(&fetch_result.blocks, "debug_notion_blocks.json");
 
-        // Create a visitor to convert blocks to Pandoc
-        let visitor = NotionToPandocVisitor::with_config(self.config.clone());
+        // Create a visitor to convert blocks to Pandoc with toggleable children support
+        let visitor = NotionToPandocVisitor::with_toggleable_children(
+            self.config.clone(),
+            fetch_result.toggleable_children
+        );
 
         // Process all blocks with the visitor using convert_blocks, which properly merges lists
-        let pandoc_blocks = visitor.convert_blocks(&blocks);
+        let pandoc_blocks = visitor.convert_blocks(&fetch_result.blocks);
 
         debug!("\n===== CONVERTED TO PANDOC BLOCKS =====");
         debug!("Converted to {} Pandoc blocks", pandoc_blocks.len());
@@ -563,6 +566,8 @@ fn remove_markdown_escaping(text: String) -> String {
         .replace("\\!", "!")
         .replace("\\.", ".")
         .replace("\\<", "<")
+        .replace("\\'", "'")
+        .replace("\\\"", "\"")
 }
 
 /// Convenience function to create a new NotionConverter
