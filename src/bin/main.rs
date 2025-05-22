@@ -79,7 +79,6 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    // Initialize logger with appropriate level based on debug flag
     let debug = match &cli.command {
         Commands::Download { debug, .. } => *debug,
         Commands::Upload { debug, .. } => *debug,
@@ -89,7 +88,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .filter_level(if debug { log::LevelFilter::Debug } else { log::LevelFilter::Info })
         .init();
 
-    // Get token from args or environment
     let token = cli.token.or_else(|| env::var("NOTION_TOKEN").ok())
         .ok_or("Notion API token not provided. Use --token or set NOTION_TOKEN environment variable")?;
 
@@ -121,13 +119,11 @@ async fn download(
     output: &Option<PathBuf>,
     format: &str,
 ) -> Result<(), Box<dyn Error>> {
-    // Create converter and configure it with the token
     let mut converter = create_converter();
     converter.configure_notion_client(token.to_string())?;
     
     debug!("Downloading content from Notion block ID: {}", block_id);
 
-    // If output is specified, use notion_to_file, otherwise get text and print to stdout
     match output {
         Some(path) => {
             let format = parse_format(format)?;
@@ -135,7 +131,6 @@ async fn download(
             info!("Content saved to: {}", path.display());
         }
         None => {
-            // For stdout, we need to get the text and print it
             let format = parse_format(format)?;
             let text = converter.notion_blocks_to_text(block_id, format).await?;
             println!("{}", text);
@@ -151,7 +146,6 @@ async fn upload(
     input: &Option<PathBuf>,
     format: &str,
 ) -> Result<(), Box<dyn Error>> {
-    // Create converter and configure it with the token
     let mut converter = create_converter();
     converter.configure_notion_client(token.to_string())?;
     
@@ -159,12 +153,10 @@ async fn upload(
 
     match input {
         Some(path) => {
-            // If input file is specified, use file_to_notion
             let format = parse_format(format)?;
             converter.file_to_notion(path, block_id, Some(format)).await?;
         }
         None => {
-            // If using stdin, read all content and use text_to_notion_blocks + upload
             let mut buffer = String::new();
             io::stdin().read_to_string(&mut buffer)?;
             

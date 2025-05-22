@@ -14,7 +14,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 1. Create a text processor
     let text_processor = create_text_processor();
     
-    // Check if Pandoc is available
     match text_processor.check_pandoc_availability() {
         Ok(version) => println!("Using {}", version),
         Err(e) => {
@@ -50,15 +49,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let md_file = temp_dir.path().join("example.md");
     let html_file = temp_dir.path().join("example.html");
     
-    // Write markdown to file
     fs::write(&md_file, markdown)?;
     println!("\nWrote markdown to temporary file: {}", md_file.display());
     
-    // Convert file
     text_processor.convert_file(&md_file, &html_file)?;
     println!("Converted to HTML file: {}", html_file.display());
     
-    // Read the result
     let html_content = fs::read_to_string(&html_file)?;
     println!("\nHTML file content length: {} bytes", html_content.len());
     
@@ -69,7 +65,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     text_processor.ast_to_file_with_format(&ast, &rst_file, TextFormat::Rst)?;
     println!("\nConverted to RST file via AST: {}", rst_file.display());
     
-    // Clean up temp directory
     temp_dir.close()?;
     
     println!("\nAll operations completed successfully!");

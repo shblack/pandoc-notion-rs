@@ -19,12 +19,10 @@ impl NotionTextConverter {
 
     /// Convert a single RichText object to Pandoc Inline elements
     fn convert_single_rich_text(rich_text: &RichText) -> Vec<Inline> {
-        // Handle empty case
         if let RichText::None = rich_text {
             return vec![];
         }
 
-        // Extract the plain text
         let plain_text = rich_text.plain_text().unwrap_or_default();
 
         // Start with the basic content as inline elements
@@ -80,7 +78,7 @@ impl NotionTextConverter {
                     inline_elements
                 }
             }
-            RichText::None => vec![], // This case is already handled above
+            RichText::None => vec![]
         };
 
         // Extract and apply annotations
@@ -143,8 +141,6 @@ impl NotionTextConverter {
         let mut result = inlines;
 
         // Apply formatting in a specific order
-
-        // Apply underline
         if annotations.underline {
             // Pandoc doesn't have native underline, use a Span with a class
             let mut attr = Attr::default();
@@ -152,33 +148,27 @@ impl NotionTextConverter {
             result = vec![Inline::Span(attr, result)];
         }
 
-        // Apply strikethrough
         if annotations.strikethrough {
             result = vec![Inline::Strikeout(result)];
         }
 
-        // Apply italic
         if annotations.italic {
             result = vec![Inline::Emph(result)];
         }
 
-        // Apply bold
         if annotations.bold {
             result = vec![Inline::Strong(result)];
         }
 
-        // Apply code (which collapses all other formatting)
         if annotations.code {
-            // For code, we need to convert the inlines to a string
             let code_text = Self::inlines_to_string(&result);
             result = vec![Inline::Code(Attr::default(), code_text)];
         }
 
         // Apply color last (outermost)
         if annotations.color != TextColor::Default {
-            // Convert color to a class name (e.g., "red" or "red-background")
             let color_class = match annotations.color {
-                TextColor::Default => return result, // Skip if default
+                TextColor::Default => return result,
                 TextColor::Gray => "color-gray",
                 TextColor::Brown => "color-brown",
                 TextColor::Orange => "color-orange",

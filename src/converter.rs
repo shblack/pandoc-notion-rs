@@ -292,7 +292,6 @@ impl NotionConverter {
     fn create_block_fetcher(&self) -> Result<NotionBlockFetcher, ConversionError> {
         let client = self.ensure_notion_client()?;
 
-        // Clone the client for the block fetcher - using the same configuration
         let fetcher_client = client.clone();
 
         Ok(create_block_fetcher(fetcher_client))
@@ -303,7 +302,7 @@ impl NotionConverter {
         println!("\n===== FETCHING BLOCKS FROM NOTION =====");
         println!("Block ID: {}", block_id);
 
-        // Create a block fetcher to recursively fetch all blocks including nested children
+        // Create a block fetcher
         let block_fetcher = self.create_block_fetcher()?;
         let fetch_result = block_fetcher
             .fetch_block_with_children(block_id)
@@ -312,7 +311,7 @@ impl NotionConverter {
 
         debug!("Fetched blocks from Notion (including children)");
 
-        // Debug: Print and save the retrieved blocks
+        // Debug output
         self.debug_print_notion_blocks(&fetch_result.blocks, 0);
         let _ = self.debug_save_to_file(&fetch_result.blocks, "debug_notion_blocks.json");
 
@@ -322,14 +321,14 @@ impl NotionConverter {
             fetch_result.toggleable_children
         );
 
-        // Process all blocks with the visitor using convert_blocks, which properly merges lists
+        // Process all blocks
         let pandoc_blocks = visitor.convert_blocks(&fetch_result.blocks);
 
         debug!("\n===== CONVERTED TO PANDOC BLOCKS =====");
         debug!("Converted to {} Pandoc blocks", pandoc_blocks.len());
         self.debug_print_pandoc_blocks(&pandoc_blocks, 0);
 
-        // Create a Pandoc document with empty metadata
+        // Create a Pandoc document
         let pandoc = Pandoc {
             meta: Default::default(),
             blocks: pandoc_blocks,
@@ -349,13 +348,13 @@ impl NotionConverter {
         println!("\n===== CONVERTING NOTION BLOCKS TO TEXT =====");
         println!("Block ID: {}, Format: {:?}", block_id, format);
 
-        // First convert to Pandoc AST
+        // Convert to Pandoc AST
         let pandoc = self.notion_blocks_to_pandoc(block_id).await?;
 
-        // Then convert to the desired text format
+        // Convert to text format
         let mut text = self.processor.ast_to_text(&pandoc, format)?;
 
-        // Remove markdown escaping if configured and format is markdown
+        // Handle markdown escaping
         if format == TextFormat::Markdown && !self.config.escape_markdown {
             text = remove_markdown_escaping(text);
         }
@@ -373,10 +372,10 @@ impl NotionConverter {
         output_path: P,
         format: TextFormat,
     ) -> Result<(), ConversionError> {
-        // Get the page content as Pandoc AST
+        // Get page content
         let pandoc = self.notion_blocks_to_pandoc(page_id).await?;
 
-        // Write to file in the specified format
+        // Write to file
         self.processor
             .ast_to_file_with_format(&pandoc, output_path, format)?;
 
@@ -390,10 +389,10 @@ impl NotionConverter {
         format: TextFormat,
     ) -> Result<Vec<NotionBlock>, ConversionError> {
         debug!("Converting text ({} bytes) to Notion blocks", text.len());
-        // First convert text to Pandoc AST
+        // Convert text to AST
         let pandoc = self.processor.text_to_ast(text, format)?;
 
-        // Then convert to Notion blocks
+        // Convert to Notion blocks
         let visitor = PandocToNotionVisitor::new();
 
         let mut blocks = Vec::new();
@@ -402,7 +401,7 @@ impl NotionConverter {
             match visitor.visit_block(block) {
                 Ok(notion_blocks) => blocks.extend(notion_blocks),
                 Err(e) => {
-                    // Log or handle the error as needed
+
                     eprintln!("Failed to convert block: {}", e);
                 }
             }
@@ -417,7 +416,7 @@ impl NotionConverter {
         file_path: P,
         format: Option<TextFormat>,
     ) -> Result<Vec<NotionBlock>, ConversionError> {
-        // Determine format from file extension if not provided
+        // Determine format
         let format = match format {
             Some(f) => f,
             None => {
@@ -429,10 +428,10 @@ impl NotionConverter {
             }
         };
 
-        // Convert file to AST
+        // File to AST
         let ast = self.processor.file_to_ast_with_format(file_path, format)?;
 
-        // Convert AST to Notion blocks
+        // AST to blocks
         let visitor = PandocToNotionVisitor::new();
 
         let mut blocks = Vec::new();
@@ -441,7 +440,7 @@ impl NotionConverter {
             match visitor.visit_block(block) {
                 Ok(notion_blocks) => blocks.extend(notion_blocks),
                 Err(e) => {
-                    // Log or handle the error as needed
+
                     eprintln!("Failed to convert block: {}", e);
                 }
             }
@@ -462,26 +461,24 @@ impl NotionConverter {
         info!("Uploading {} blocks to Notion page {}", blocks.len(), parent_id);
         let client = self.ensure_notion_client()?;
 
-        // If there are no blocks, return early
+        // Early return for empty blocks
         if blocks.is_empty() {
             return Ok(());
         }
 
-        // Process blocks in batches using level-order traversal
+        // Process blocks
         self.upload_blocks_level_order(parent_id, blocks, client.clone())
             .await
     }
 
-    /// Helper function to upload blocks in level-order traversal (breadth-first)
-    /// This method is now a simple wrapper around NotionBlockPutter
-    /// Implementation has been moved to the NotionBlockPutter module
+    /// Helper function to upload blocks using NotionBlockPutter
     async fn upload_blocks_level_order(
         &self,
         parent_id: &str,
         blocks: Vec<NotionBlock>,
         client: NotionClient,
     ) -> Result<(), ConversionError> {
-        // Use standard block putter with logging
+        // Create block putter
         let block_putter = create_block_putter(client);
 
         block_putter
@@ -499,12 +496,12 @@ impl NotionConverter {
     ) -> Result<(), ConversionError> {
         debug!("Converting file {:?} to Notion blocks", file_path.as_ref());
         
-        // Convert file to Notion blocks
+        // Convert file
         let blocks = self.file_to_notion_blocks(file_path, format)?;
         
         debug!("Generated {} Notion blocks, uploading to parent_id: {}", blocks.len(), parent_id);
 
-        // Upload blocks to Notion
+        // Upload blocks
         self.upload_blocks_to_notion(parent_id, blocks).await?;
 
         info!("Successfully uploaded file to Notion");
