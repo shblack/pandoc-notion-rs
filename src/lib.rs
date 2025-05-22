@@ -15,8 +15,8 @@ pub mod text;
 // Re-export key types and traits for convenient usage
 pub use converter::{NotionConverter, ConversionError, create_converter};
 pub use n2p::ConversionConfig;
-pub use notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, create_debug_block_fetcher};
-pub use notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter, create_debug_block_putter};
+pub use notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher};
+pub use notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
 pub use pandoc_types::definition::Pandoc;
 pub use text::processor::PandocProcessor;
 pub use text::{TextFormat, TextProcessingError, TextProcessor};
@@ -32,8 +32,8 @@ pub mod prelude {
     pub use crate::create_converter;
     pub use crate::create_text_processor;
     pub use crate::ConversionConfig;
-    pub use crate::notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, create_debug_block_fetcher};
-    pub use crate::notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter, create_debug_block_putter};
+    pub use crate::notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher};
+    pub use crate::notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
     pub use crate::text::{TextFormat, TextProcessor};
     pub use pandoc_types::definition::{Block, Inline, Pandoc};
 }

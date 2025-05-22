@@ -188,7 +188,10 @@ mod tests {
 
     // Test configuration for all tests
     fn test_config() -> ConversionConfig {
-        ConversionConfig { preserve_attributes: true }
+        ConversionConfig { 
+            preserve_attributes: true,
+            escape_markdown: false,
+        }
     }
 
     // Helper function to create a rich text element for testing

@@ -4,6 +4,7 @@
 //! from the Notion API, ensuring nested content like lists and blockquotes are properly
 //! preserved during conversion.
 
+use log::{debug, warn};
 use notion_client::endpoints::Client as NotionClient;
 use notion_client::objects::block::{Block as NotionBlock, BlockType};
 use std::collections::VecDeque;
@@ -40,9 +41,6 @@ pub struct BlockFetcherConfig {
     
     /// Whether to fetch all blocks at once (breadth-first) or depth-first
     pub breadth_first: bool,
-    
-    /// Whether to include debug output
-    pub debug: bool,
 }
 
 impl Default for BlockFetcherConfig {
@@ -51,7 +49,6 @@ impl Default for BlockFetcherConfig {
             max_depth: 10,
             api_call_delay_ms: 0,
             breadth_first: false,
-            debug: false,
         }
     }
 }
@@ -68,6 +65,7 @@ pub struct NotionBlockFetcher {
 impl NotionBlockFetcher {
     /// Create a new block fetcher with the given client and default configuration
     pub fn new(client: NotionClient) -> Self {
+        debug!("Creating new NotionBlockFetcher with default configuration");
         Self {
             client,
             config: BlockFetcherConfig::default(),
@@ -94,17 +92,11 @@ impl NotionBlockFetcher {
         self
     }
     
-    /// Enable or disable debug output
-    pub fn with_debug(mut self, debug: bool) -> Self {
-        self.config.debug = debug;
-        self
-    }
+
     
     /// Fetch a block and all its children recursively
     pub async fn fetch_block_with_children(&self, block_id: &str) -> Result<Vec<NotionBlock>> {
-        if self.config.debug {
-            println!("Fetching blocks for parent: {}", block_id);
-        }
+        debug!("Fetching blocks for parent: {}", block_id);
         
         // Fetch the top-level blocks
         let top_level_blocks = self.fetch_blocks(block_id).await?;
@@ -127,9 +119,7 @@ impl NotionBlockFetcher {
             .await
             .map_err(BlockFetcherError::NotionApi)?;
         
-        if self.config.debug {
-            println!("Fetched {} blocks for parent: {}", response.results.len(), block_id);
-        }
+        debug!("Fetched {} child blocks", response.results.len());
         
         Ok(response.results)
     }
@@ -138,9 +128,7 @@ impl NotionBlockFetcher {
     async fn fetch_children_depth_first(&self, blocks: Vec<NotionBlock>, depth: usize) -> Result<Vec<NotionBlock>> {
         // Stop if we've reached the maximum depth
         if depth >= self.config.max_depth {
-            if self.config.debug {
-                println!("Reached maximum depth ({}), stopping recursion", self.config.max_depth);
-            }
+            debug!("Reached maximum depth ({}), stopping recursion", self.config.max_depth);
             return Ok(blocks);
         }
         
@@ -151,9 +139,7 @@ impl NotionBlockFetcher {
             if self.block_has_children(&block) {
                 if let Some(id) = block.id.as_ref() {
                     // Fetch children
-                    if self.config.debug {
-                        println!("Block of type {:?} has children, fetching recursively...", block.block_type);
-                    }
+                    debug!("Block of type {:?} has children, fetching recursively...", block.block_type);
                     
                     let children = self.fetch_blocks(id).await?;
                     
@@ -300,22 +286,14 @@ impl NotionBlockFetcher {
                 quote.children = Some(children);
             },
             _ => {
-                if self.config.debug {
-                    println!("WARNING: Cannot attach children to block type {:?}", block.block_type);
-                }
+                warn!("Cannot attach children to block type {:?}", block.block_type);
             }
         }
     }
 }
 
-/// Helper function to create a block fetcher with default configuration
+/// Helper function to create a block fetcher with default configuration and rate limiting
 pub fn create_block_fetcher(client: NotionClient) -> NotionBlockFetcher {
     NotionBlockFetcher::new(client)
-}
-
-/// Helper function to create a block fetcher with debugging enabled
-pub fn create_debug_block_fetcher(client: NotionClient) -> NotionBlockFetcher {
-    NotionBlockFetcher::new(client)
-        .with_debug(true)
         .with_api_call_delay(200) // Add a small delay to avoid rate limits
 }

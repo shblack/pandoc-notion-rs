@@ -3,6 +3,7 @@
 //! This module provides functionality to upload blocks to Notion with proper handling of nested structures.
 //! It works around the API limitation that prevents deeply nested content from being uploaded in a single request.
 
+use log::debug;
 use notion_client::endpoints::Client as NotionClient;
 use notion_client::endpoints::blocks::append::request::AppendBlockChildrenRequest;
 use notion_client::objects::block::{Block as NotionBlock, BlockType};
@@ -38,9 +39,6 @@ pub struct BlockPutterConfig {
     
     /// Number of blocks to upload in a single request (default: 50, max: 100)
     pub batch_size: usize,
-    
-    /// Whether to include debug output
-    pub debug: bool,
 }
 
 impl Default for BlockPutterConfig {
@@ -48,7 +46,6 @@ impl Default for BlockPutterConfig {
         Self {
             api_call_delay_ms: 100,
             batch_size: 50,
-            debug: false,
         }
     }
 }
@@ -140,27 +137,13 @@ impl NotionBlockPutter {
         self
     }
     
-    /// Set the batch size
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
-        self.config.batch_size = batch_size.min(100); // Notion API limit is 100
-        self
-    }
-    
-    /// Enable or disable debug output
-    pub fn with_debug(mut self, debug: bool) -> Self {
-        self.config.debug = debug;
-        self
-    }
-    
     /// Upload blocks to a Notion page with proper handling of nested structures
     pub async fn upload_blocks(&self, parent_id: &str, blocks: Vec<NotionBlock>) -> Result<()> {
         if blocks.is_empty() {
             return Ok(());
         }
         
-        if self.config.debug {
-            println!("Uploading {} blocks to parent: {}", blocks.len(), parent_id);
-        }
+        debug!("Uploading {} blocks to parent: {}", blocks.len(), parent_id);
         
         // Process blocks level by level
         self.upload_blocks_level_order(parent_id, blocks).await
@@ -238,19 +221,15 @@ impl NotionBlockPutter {
                 after: None,
             };
             
-            if self.config.debug {
-                println!("Uploading batch of {} blocks to parent: {}", batch.len(), parent_id);
-            }
+            debug!("Uploading batch of {} blocks to parent: {}", batch.len(), parent_id);
             
             // Send the request
             let response = self.client.blocks.append_block_children(parent_id, request)
                 .await
                 .map_err(BlockPutterError::NotionApi)?;
             
-            // Debug print to help with troubleshooting
-            if self.config.debug {
-                println!("Response: {:?}", response);
-            }
+            // Log response for troubleshooting
+            debug!("Notion API response: {:?}", response);
             
             // Extract block IDs from the response
             // Handle response.results as Vec<Block> directly (not Option<Vec<Block>>)
@@ -316,11 +295,5 @@ impl NotionBlockPutter {
 /// Helper function to create a block putter with default configuration
 pub fn create_block_putter(client: NotionClient) -> NotionBlockPutter {
     NotionBlockPutter::new(client)
-}
-
-/// Helper function to create a block putter with debugging enabled
-pub fn create_debug_block_putter(client: NotionClient) -> NotionBlockPutter {
-    NotionBlockPutter::new(client)
-        .with_debug(true)
         .with_api_call_delay(200) // Add a small delay to avoid rate limits
 }

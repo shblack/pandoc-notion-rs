@@ -28,12 +28,16 @@ pub struct ConversionConfig {
     /// Whether to preserve Notion-specific attributes in Pandoc output
     /// When false, attributes are left blank (default)
     pub preserve_attributes: bool,
+    /// Whether to escape special markdown characters in output
+    /// When false, removes excessive escaping of characters (default)
+    pub escape_markdown: bool,
 }
 
 impl Default for ConversionConfig {
     fn default() -> Self {
         Self {
             preserve_attributes: false,
+            escape_markdown: false,  // Disabled by default
         }
     }
 }

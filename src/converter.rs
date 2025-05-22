@@ -4,11 +4,12 @@
 //! and other text formats using Pandoc as an intermediary.
 
 use crate::n2p::{ConversionConfig, NotionToPandocVisitor};
-use crate::notion_block_fetcher::{NotionBlockFetcher, create_debug_block_fetcher};
-use crate::notion_block_putter::{BlockPutterError, create_debug_block_putter};
+use crate::notion_block_fetcher::{NotionBlockFetcher, create_block_fetcher};
+use crate::notion_block_putter::{BlockPutterError, create_block_putter};
 use crate::p2n::{PandocBlockVisitor, PandocToNotionVisitor};
 use crate::text::processor::PandocProcessor;
 use crate::text::{TextFormat, TextProcessingError, TextProcessor};
+use log::{debug, info, error};
 use notion_client::NotionClientError;
 use notion_client::endpoints::Client as NotionClient;
 use notion_client::objects::block::{Block as NotionBlock, BlockType};
@@ -49,8 +50,9 @@ pub struct NotionConverter {
 }
 
 impl NotionConverter {
-    /// Create a new converter with default settings
+    /// Create a NotionConverter with default settings
     pub fn new() -> Self {
+        debug!("Creating new NotionConverter with default settings");
         Self {
             processor: PandocProcessor::new(),
             notion_client: None,
@@ -73,6 +75,13 @@ impl NotionConverter {
         self
     }
 
+    /// Configure whether to escape special markdown characters in output text
+    /// When false (default), excessive escaping of characters is removed
+    pub fn with_escape_markdown(mut self, escape_markdown: bool) -> Self {
+        self.config.escape_markdown = escape_markdown;
+        self
+    }
+
     /// Set the conversion configuration
     pub fn with_config(mut self, config: ConversionConfig) -> Self {
         self.config = config;
@@ -90,6 +99,7 @@ impl NotionConverter {
         let client = notion_client::endpoints::Client::new(token, None).map_err(|e| e)?;
 
         self.notion_client = Some(client);
+        info!("Successfully downloaded Notion content to file");
         Ok(())
     }
 
@@ -104,11 +114,11 @@ impl NotionConverter {
     fn debug_print_notion_blocks(&self, blocks: &[NotionBlock], indent: usize) {
         let indent_str = " ".repeat(indent);
 
-        println!("{}Notion Blocks: {} items", indent_str, blocks.len());
+        debug!("{}Notion Blocks: {} items", indent_str, blocks.len());
 
         for (i, block) in blocks.iter().enumerate() {
             let block_type = format!("{:?}", block.block_type);
-            println!("{}Block #{}: Type: {}", indent_str, i, block_type);
+            debug!("{}Block #{}: Type: {}", indent_str, i, block_type);
 
             // Check if the block has children and print them
             let children = match &block.block_type {
@@ -124,7 +134,7 @@ impl NotionConverter {
 
             if let Some(children) = children {
                 if !children.is_empty() {
-                    println!("{}  Has {} children:", indent_str, children.len());
+                    debug!("{}  Has {} children:", indent_str, children.len());
                     self.debug_print_notion_blocks(children, indent + 4);
                 }
             }
@@ -135,12 +145,12 @@ impl NotionConverter {
     fn debug_print_pandoc_blocks(&self, blocks: &[PandocBlock], indent: usize) {
         let indent_str = " ".repeat(indent);
 
-        println!("{}Pandoc Blocks: {} items", indent_str, blocks.len());
+        debug!("{}Pandoc Blocks: {} items", indent_str, blocks.len());
 
         for (i, block) in blocks.iter().enumerate() {
             match block {
                 PandocBlock::Plain(inlines) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: Plain with {} inlines",
                         indent_str,
                         i,
@@ -148,7 +158,7 @@ impl NotionConverter {
                     );
                 }
                 PandocBlock::Para(inlines) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: Para with {} inlines",
                         indent_str,
                         i,
@@ -156,7 +166,7 @@ impl NotionConverter {
                     );
                 }
                 PandocBlock::LineBlock(lines) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: LineBlock with {} lines",
                         indent_str,
                         i,
@@ -182,7 +192,7 @@ impl NotionConverter {
                     );
                 }
                 PandocBlock::BlockQuote(blocks) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: BlockQuote with {} blocks",
                         indent_str,
                         i,
@@ -191,39 +201,39 @@ impl NotionConverter {
                     self.debug_print_pandoc_blocks(blocks, indent + 4);
                 }
                 PandocBlock::OrderedList(_attrs, items) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: OrderedList with {} items",
                         indent_str,
                         i,
                         items.len()
                     );
                     for (j, item) in items.iter().enumerate() {
-                        println!("{}  Item #{} with {} blocks", indent_str, j, item.len());
+                        debug!("{}  Item #{} with {} blocks", indent_str, j, item.len());
                         self.debug_print_pandoc_blocks(item, indent + 8);
                     }
                 }
                 PandocBlock::BulletList(items) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: BulletList with {} items",
                         indent_str,
                         i,
                         items.len()
                     );
                     for (j, item) in items.iter().enumerate() {
-                        println!("{}  Item #{} with {} blocks", indent_str, j, item.len());
+                        debug!("{}  Item #{} with {} blocks", indent_str, j, item.len());
                         self.debug_print_pandoc_blocks(item, indent + 8);
                     }
                 }
                 PandocBlock::DefinitionList(items) => {
-                    println!(
-                        "{}Block #{}: DefinitionList with {} items",
+                    debug!(
+                        "{}Block #{}: Definition List with {} items",
                         indent_str,
                         i,
                         items.len()
                     );
                 }
                 PandocBlock::Header(level, _attr, inlines) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: Header level {} with {} inlines",
                         indent_str,
                         i,
@@ -232,13 +242,13 @@ impl NotionConverter {
                     );
                 }
                 PandocBlock::HorizontalRule => {
-                    println!("{}Block #{}: HorizontalRule", indent_str, i);
+                    debug!("{}Block #{}: HorizontalRule", indent_str, i);
                 }
                 PandocBlock::Table(_table) => {
-                    println!("{}Block #{}: Table", indent_str, i);
+                    debug!("{}Block #{}: Table", indent_str, i);
                 }
                 PandocBlock::Div(attr, blocks) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: Div '{}' with {} blocks",
                         indent_str,
                         i,
@@ -248,10 +258,10 @@ impl NotionConverter {
                     self.debug_print_pandoc_blocks(blocks, indent + 4);
                 }
                 PandocBlock::Null => {
-                    println!("{}Block #{}: Null", indent_str, i);
+                    debug!("{}Block #{}: Null", indent_str, i);
                 }
                 PandocBlock::Figure(_attr, _caption, blocks) => {
-                    println!(
+                    debug!(
                         "{}Block #{}: Figure with {} blocks",
                         indent_str,
                         i,
@@ -274,7 +284,7 @@ impl NotionConverter {
 
         fs::write(filename, json).map_err(|e| format!("Failed to write to file: {}", e))?;
 
-        println!("Saved debug data to {}", filename);
+        debug!("Saved debug data to {}", filename);
         Ok(())
     }
 
@@ -285,7 +295,7 @@ impl NotionConverter {
         // Clone the client for the block fetcher - using the same configuration
         let fetcher_client = client.clone();
 
-        Ok(create_debug_block_fetcher(fetcher_client))
+        Ok(create_block_fetcher(fetcher_client))
     }
 
     /// Fetch blocks from Notion and convert to Pandoc AST
@@ -300,7 +310,7 @@ impl NotionConverter {
             .await
             .map_err(|e| ConversionError::Other(format!("Block fetcher error: {}", e)))?;
 
-        println!("Fetched blocks from Notion (including children)");
+        debug!("Fetched blocks from Notion (including children)");
 
         // Debug: Print and save the retrieved blocks
         self.debug_print_notion_blocks(&blocks, 0);
@@ -312,8 +322,8 @@ impl NotionConverter {
         // Process all blocks with the visitor using convert_blocks, which properly merges lists
         let pandoc_blocks = visitor.convert_blocks(&blocks);
 
-        println!("\n===== CONVERTED TO PANDOC BLOCKS =====");
-        println!("Converted to {} Pandoc blocks", pandoc_blocks.len());
+        debug!("\n===== CONVERTED TO PANDOC BLOCKS =====");
+        debug!("Converted to {} Pandoc blocks", pandoc_blocks.len());
         self.debug_print_pandoc_blocks(&pandoc_blocks, 0);
 
         // Create a Pandoc document with empty metadata
@@ -340,9 +350,14 @@ impl NotionConverter {
         let pandoc = self.notion_blocks_to_pandoc(block_id).await?;
 
         // Then convert to the desired text format
-        let text = self.processor.ast_to_text(&pandoc, format)?;
+        let mut text = self.processor.ast_to_text(&pandoc, format)?;
 
-        println!("Converted to text, length: {} bytes", text.len());
+        // Remove markdown escaping if configured and format is markdown
+        if format == TextFormat::Markdown && !self.config.escape_markdown {
+            text = remove_markdown_escaping(text);
+        }
+
+        debug!("Converted to text, length: {} bytes", text.len());
         let _ = fs::write("debug_output_text.txt", &text);
 
         Ok(text)
@@ -371,6 +386,7 @@ impl NotionConverter {
         text: &str,
         format: TextFormat,
     ) -> Result<Vec<NotionBlock>, ConversionError> {
+        debug!("Converting text ({} bytes) to Notion blocks", text.len());
         // First convert text to Pandoc AST
         let pandoc = self.processor.text_to_ast(text, format)?;
 
@@ -440,6 +456,7 @@ impl NotionConverter {
         parent_id: &str,
         blocks: Vec<NotionBlock>,
     ) -> Result<(), ConversionError> {
+        info!("Uploading {} blocks to Notion page {}", blocks.len(), parent_id);
         let client = self.ensure_notion_client()?;
 
         // If there are no blocks, return early
@@ -461,8 +478,8 @@ impl NotionConverter {
         blocks: Vec<NotionBlock>,
         client: NotionClient,
     ) -> Result<(), ConversionError> {
-        // Always use debug block putter for now, since we don't have a debug flag in ConversionConfig
-        let block_putter = create_debug_block_putter(client);
+        // Use standard block putter with logging
+        let block_putter = create_block_putter(client);
 
         block_putter
             .upload_blocks(parent_id, blocks)
@@ -477,12 +494,17 @@ impl NotionConverter {
         parent_id: &str,
         format: Option<TextFormat>,
     ) -> Result<(), ConversionError> {
+        debug!("Converting file {:?} to Notion blocks", file_path.as_ref());
+        
         // Convert file to Notion blocks
         let blocks = self.file_to_notion_blocks(file_path, format)?;
+        
+        debug!("Generated {} Notion blocks, uploading to parent_id: {}", blocks.len(), parent_id);
 
         // Upload blocks to Notion
         self.upload_blocks_to_notion(parent_id, blocks).await?;
 
+        info!("Successfully uploaded file to Notion");
         Ok(())
     }
 
@@ -493,24 +515,54 @@ impl NotionConverter {
         output_path: P,
         format: Option<TextFormat>,
     ) -> Result<(), ConversionError> {
+        debug!("Downloading Notion content from block ID: {} to file: {:?}", block_id, output_path.as_ref());
+        
         // Determine format from file extension if not provided
         let format = match format {
             Some(f) => f,
             None => {
                 let path = output_path.as_ref();
-                path.extension()
+                let detected_format = path.extension()
                     .and_then(|ext| ext.to_str())
                     .and_then(TextFormat::from_extension)
-                    .unwrap_or(TextFormat::Markdown)
+                    .unwrap_or(TextFormat::Markdown);
+                debug!("Format not specified, detected format from extension: {:?}", detected_format);
+                detected_format
             }
         };
 
         // Convert Notion content to file
         self.notion_page_to_file(block_id, output_path, format)
             .await?;
+        
+        debug!("Successfully converted Notion content to file");
 
         Ok(())
     }
+}
+
+/// Remove escaping from common markdown characters that Pandoc may have escaped
+fn remove_markdown_escaping(text: String) -> String {
+    // Replace common escaped markdown characters with their unescaped versions
+    text.replace("\\*", "*")
+        .replace("\\_", "_")
+        .replace("\\[", "[")
+        .replace("\\]", "]")
+        .replace("\\(", "(")
+        .replace("\\)", ")")
+        .replace("\\#", "#")
+        .replace("\\`", "`")
+        .replace("\\~", "~")
+        .replace("\\>", ">")
+        .replace("\\-", "-")
+        .replace("\\+", "+")
+        .replace("\\=", "=")
+        .replace("\\|", "|")
+        .replace("\\{", "{")
+        .replace("\\}", "}")
+        .replace("\\!", "!")
+        .replace("\\.", ".")
+        .replace("\\<", "<")
 }
 
 /// Convenience function to create a new NotionConverter

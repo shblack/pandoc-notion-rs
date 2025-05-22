@@ -1,0 +1,15 @@
+<ul>
+<li>bullet 1.0
+<ul>
+<li>bullet 1.1</li>
+<li>bullet 1.2</li>
+</ul>
+<ol type="1">
+<li>number 1.3</li>
+<li>number 1.4</li>
+</ol>
+<ul>
+<li>bullet 1.5</li>
+<li>[ ] to do 1.6</li>
+</ul></li>
+</ul>

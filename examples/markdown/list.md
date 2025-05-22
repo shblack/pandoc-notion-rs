@@ -4,4 +4,6 @@
   1. number 1.3
   2. number 1.4
   - bullet 1.5
-  - [ ] to do 1.6
+    - [ ] to do 2.1
+    - bullet 2.2
+      - [ ] to do 3.1

@@ -288,14 +288,19 @@ pub fn convert_notion_todo(
             // Create vector for inlines
             let mut inlines = Vec::new();
 
-            // Add checkbox character based on status (using Unicode characters)
-            let checkbox = if to_do.checked.unwrap_or(false) {
-                Inline::Str("☒".to_string()) // Checked box (Unicode)
+            // Add opening bracket for CommonMark X format
+            inlines.push(Inline::Str("[".to_string()));
+            
+            // Add checkbox content (space or x) based on status
+            if to_do.checked.unwrap_or(false) {
+                inlines.push(Inline::Str("x".to_string())); // Checked with 'x'
             } else {
-                Inline::Str("☐".to_string()) // Unchecked box (Unicode)
-            };
-            inlines.push(checkbox);
-
+                inlines.push(Inline::Space); // Unchecked with space
+            }
+            
+            // Add closing bracket
+            inlines.push(Inline::Str("]".to_string()));
+            
             // Add space after checkbox
             inlines.push(Inline::Space);
 
@@ -532,11 +537,20 @@ mod tests {
                 assert_eq!(inlines.len(), 1);
                 if let Inline::Span(_, span_inlines) = &inlines[0] {
                     // Don't strictly check span count as text may be split into multiple pieces
-                    assert!(span_inlines.len() >= 3); // At least checkbox, space, and some text
-                    if let Inline::Str(checkbox) = &span_inlines[0] {
-                        assert_eq!(checkbox, "☐");
+                    assert!(span_inlines.len() >= 4); // At least [, space, ], space, and some text
+                    if let Inline::Str(open_bracket) = &span_inlines[0] {
+                        assert_eq!(open_bracket, "[");
+                        if let Inline::Space = &span_inlines[1] {
+                            if let Inline::Str(close_bracket) = &span_inlines[2] {
+                                assert_eq!(close_bracket, "]");
+                            } else {
+                                panic!("Expected closing bracket");
+                            }
+                        } else {
+                            panic!("Expected space in checkbox");
+                        }
                     } else {
-                        panic!("Expected checkbox character");
+                        panic!("Expected opening bracket");
                     }
                 } else {
                     panic!("Expected span");
@@ -559,11 +573,21 @@ mod tests {
                 assert_eq!(inlines.len(), 1);
                 if let Inline::Span(_, span_inlines) = &inlines[0] {
                     // Don't strictly check span count as text may be split into multiple pieces
-                    assert!(span_inlines.len() >= 3); // At least checkbox, space, and some text
-                    if let Inline::Str(checkbox) = &span_inlines[0] {
-                        assert_eq!(checkbox, "☒");
+                    assert!(span_inlines.len() >= 4); // At least [, x, ], space, and some text
+                    if let Inline::Str(open_bracket) = &span_inlines[0] {
+                        assert_eq!(open_bracket, "[");
+                        if let Inline::Str(x) = &span_inlines[1] {
+                            assert_eq!(x, "x");
+                            if let Inline::Str(close_bracket) = &span_inlines[2] {
+                                assert_eq!(close_bracket, "]");
+                            } else {
+                                panic!("Expected closing bracket");
+                            }
+                        } else {
+                            panic!("Expected 'x' in checkbox");
+                        }
                     } else {
-                        panic!("Expected checkbox character");
+                        panic!("Expected opening bracket");
                     }
                 } else {
                     panic!("Expected span");

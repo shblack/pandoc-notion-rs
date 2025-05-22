@@ -318,6 +318,7 @@ impl PandocListConverter {
     ) -> Result<Option<NotionBlock>, Box<dyn Error>> {
         match first_block {
             PandocBlock::Plain(inlines) | PandocBlock::Para(inlines) => {
+                // Check for Unicode checkbox format (☐ or ☒)
                 if let Some(Inline::Str(checkbox)) = inlines.first() {
                     if checkbox == "☐" || checkbox == "☒" {
                         let checked = checkbox == "☒";
@@ -340,6 +341,66 @@ impl PandocListConverter {
                             .with_checked(checked);
                             
                         return Ok(Some(builder.build()));
+                    }
+                }
+                
+                // Check for CommonMark X format: "[ ]" or "[x]"
+                if inlines.len() >= 3 {
+                    // Check for opening bracket
+                    if let Some(Inline::Str(open_bracket)) = inlines.first() {
+                        if open_bracket == "[" {
+                            // Check for checked/unchecked state
+                            let (checked, offset) = match inlines.get(1) {
+                                // Unchecked: "[" + " " + "]"
+                                Some(Inline::Space) => {
+                                    if let Some(Inline::Str(close_bracket)) = inlines.get(2) {
+                                        if close_bracket == "]" {
+                                            (false, 3) // Unchecked with 3 elements
+                                        } else {
+                                            return Ok(None); // Not a checkbox
+                                        }
+                                    } else {
+                                        return Ok(None); // Not a checkbox
+                                    }
+                                },
+                                // Checked: "[" + "x" + "]" or "[" + "X" + "]"
+                                Some(Inline::Str(x)) => {
+                                    if x == "x" || x == "X" {
+                                        if let Some(Inline::Str(close_bracket)) = inlines.get(2) {
+                                            if close_bracket == "]" {
+                                                (true, 3) // Checked with 3 elements
+                                            } else {
+                                                return Ok(None); // Not a checkbox
+                                            }
+                                        } else {
+                                            return Ok(None); // Not a checkbox
+                                        }
+                                    } else {
+                                        return Ok(None); // Not a checkbox
+                                    }
+                                },
+                                _ => return Ok(None), // Not a checkbox
+                            };
+                            
+                            // Extract content after the checkbox
+                            let mut content_inlines = inlines.clone();
+                            content_inlines.drain(0..offset); // Remove checkbox
+                            
+                            // Remove space after checkbox if present
+                            if content_inlines.first() == Some(&Inline::Space) {
+                                content_inlines.remove(0);
+                            }
+                            
+                            // Convert remaining content to rich text
+                            let rich_text = self.text_converter.convert(&content_inlines)?;
+                            
+                            // Build the todo item
+                            let builder = NotionTodoListBuilder::new()
+                                .rich_text(rich_text)
+                                .with_checked(checked);
+                                
+                            return Ok(Some(builder.build()));
+                        }
                     }
                 }
             }
@@ -621,7 +682,7 @@ mod tests {
     fn test_convert_todo_item() {
         let converter = PandocListConverter::new();
 
-        // Create a todo list item (unchecked)
+        // Create a todo list item with Unicode checkbox (unchecked)
         let item = vec![PandocBlock::Plain(vec![
             Inline::Str("☐".to_string()),
             Inline::Space,
@@ -644,7 +705,7 @@ mod tests {
             _ => panic!("Expected ToDo block type"),
         }
 
-        // Create a todo list item (checked)
+        // Create a todo list item with Unicode checkbox (checked)
         let item = vec![PandocBlock::Plain(vec![
             Inline::Str("☒".to_string()),
             Inline::Space,
@@ -662,6 +723,81 @@ mod tests {
             BlockType::ToDo { to_do } => {
                 assert_eq!(to_do.rich_text.len(), 1);
                 assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "Checked task");
+                assert_eq!(to_do.checked, Some(true));
+            }
+            _ => panic!("Expected ToDo block type"),
+        }
+        
+        // Test CommonMark X format (unchecked): [ ]
+        let item = vec![PandocBlock::Plain(vec![
+            Inline::Str("[".to_string()),
+            Inline::Space,
+            Inline::Str("]".to_string()),
+            Inline::Space,
+            Inline::Str("CommonMark unchecked".to_string()),
+        ])];
+
+        // Process potential todo item
+        let result = converter.process_potential_todo_item(&item).unwrap();
+
+        // Verify the result
+        assert!(result.is_some());
+        let todo_block = result.unwrap();
+
+        match todo_block.block_type {
+            BlockType::ToDo { to_do } => {
+                assert_eq!(to_do.rich_text.len(), 1);
+                assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "CommonMark unchecked");
+                assert_eq!(to_do.checked, Some(false));
+            }
+            _ => panic!("Expected ToDo block type"),
+        }
+        
+        // Test CommonMark X format (checked): [x]
+        let item = vec![PandocBlock::Plain(vec![
+            Inline::Str("[".to_string()),
+            Inline::Str("x".to_string()),
+            Inline::Str("]".to_string()),
+            Inline::Space,
+            Inline::Str("CommonMark checked".to_string()),
+        ])];
+
+        // Process potential todo item
+        let result = converter.process_potential_todo_item(&item).unwrap();
+
+        // Verify the result
+        assert!(result.is_some());
+        let todo_block = result.unwrap();
+
+        match todo_block.block_type {
+            BlockType::ToDo { to_do } => {
+                assert_eq!(to_do.rich_text.len(), 1);
+                assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "CommonMark checked");
+                assert_eq!(to_do.checked, Some(true));
+            }
+            _ => panic!("Expected ToDo block type"),
+        }
+        
+        // Test CommonMark X format with capital X (checked): [X]
+        let item = vec![PandocBlock::Plain(vec![
+            Inline::Str("[".to_string()),
+            Inline::Str("X".to_string()),
+            Inline::Str("]".to_string()),
+            Inline::Space,
+            Inline::Str("CommonMark capital X".to_string()),
+        ])];
+
+        // Process potential todo item
+        let result = converter.process_potential_todo_item(&item).unwrap();
+
+        // Verify the result
+        assert!(result.is_some());
+        let todo_block = result.unwrap();
+
+        match todo_block.block_type {
+            BlockType::ToDo { to_do } => {
+                assert_eq!(to_do.rich_text.len(), 1);
+                assert_eq!(to_do.rich_text[0].plain_text().unwrap(), "CommonMark capital X");
                 assert_eq!(to_do.checked, Some(true));
             }
             _ => panic!("Expected ToDo block type"),
