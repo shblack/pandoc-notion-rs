@@ -124,6 +124,7 @@ impl NotionBlockPutter {
     }
     
     /// Create a new block putter with custom configuration
+    #[allow(dead_code)]
     pub fn with_config(client: NotionClient, config: BlockPutterConfig) -> Self {
         Self {
             client,

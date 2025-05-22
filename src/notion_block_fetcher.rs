@@ -13,18 +13,23 @@ use tokio::time::sleep;
 use crate::notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
 
 /// Error types for block fetching operations
+/// Error type for the block fetcher
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum BlockFetcherError {
     #[error("Notion API error: {0}")]
     NotionApi(#[from] notion_client::NotionClientError),
     
     #[error("Missing block ID")]
+    #[allow(dead_code)]
     MissingBlockId,
     
     #[error("Rate limit exceeded")]
+    #[allow(dead_code)]
     RateLimit,
     
     #[error("Other error: {0}")]
+    #[allow(dead_code)]
     Other(String),
 }
 
@@ -74,6 +79,7 @@ impl NotionBlockFetcher {
     }
     
     /// Create a new block fetcher with custom configuration
+    #[allow(dead_code)]
     pub fn with_config(client: NotionClient, config: BlockFetcherConfig) -> Self {
         Self {
             client,
@@ -82,6 +88,7 @@ impl NotionBlockFetcher {
     }
     
     /// Set the maximum recursion depth
+    #[allow(dead_code)]
     pub fn with_max_depth(mut self, max_depth: usize) -> Self {
         self.config.max_depth = max_depth;
         self
@@ -161,7 +168,12 @@ impl NotionBlockFetcher {
                         self.fetch_children_depth_first(children, depth + 1, toggleable_children)
                     ).await?;
                     
-                    // Store in the manager
+                    // For toggle blocks, attach children directly to the block
+                    if let BlockType::Toggle { .. } = &mut block.block_type {
+                        self.attach_children_to_block(&mut block, processed_children.clone());
+                    }
+                    
+                    // Also store in the manager (useful for toggleable headings)
                     toggleable_children.add_children(&block, processed_children);
                 }
             }
@@ -282,6 +294,12 @@ impl NotionBlockFetcher {
                 
                 // Special handling for toggleable blocks
                 if parent.is_toggleable() {
+                    // For toggle blocks, use their native children field
+                    if let BlockType::Toggle { .. } = &parent.block_type {
+                        // Children are already attached by attach_children_to_block below
+                    }
+                    
+                    // Store in toggleable children manager (for toggleable headings and as backup)
                     toggleable_children.add_children(parent, parent_children.clone());
                 }
                 

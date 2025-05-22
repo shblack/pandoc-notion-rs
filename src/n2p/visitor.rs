@@ -1,6 +1,6 @@
 use notion_client::objects::block::{
     Block as NotionBlock, BulletedListItemValue, CodeValue, DividerValue, HeadingsValue, NumberedListItemValue,
-    ParagraphValue, QuoteValue, ToDoValue,
+    ParagraphValue, QuoteValue, ToDoValue, ToggleValue,
 };
 use pandoc_types::definition::Block as PandocBlock;
 
@@ -29,6 +29,7 @@ pub trait NotionBlockVisitor {
     ) -> Vec<PandocBlock>;
     fn visit_todo(&self, block: &NotionBlock, todo: &ToDoValue) -> Vec<PandocBlock>;
     fn visit_divider(&self, block: &NotionBlock, divider: &DividerValue) -> Vec<PandocBlock>;
+    fn visit_toggle(&self, block: &NotionBlock, toggle: &ToggleValue) -> Vec<PandocBlock>;
     // Other block type visitors will be added as support expands
 
     // Handle unsupported blocks

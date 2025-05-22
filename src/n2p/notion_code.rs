@@ -191,6 +191,7 @@ mod tests {
         ConversionConfig { 
             preserve_attributes: true,
             escape_markdown: false,
+            render_toggle_div: false,
         }
     }
 

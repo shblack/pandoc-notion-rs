@@ -31,13 +31,20 @@ pub struct ConversionConfig {
     /// Whether to escape special markdown characters in output
     /// When false, removes excessive escaping of characters (default)
     pub escape_markdown: bool,
+    /// Whether to render toggles as div elements
+    /// When true, toggles are rendered as proper divs with toggle class
+    /// When false, toggles are rendered as just text or a blank line (default)
+    pub render_toggle_div: bool,
 }
 
+// Defaults are optimized for readable Markdown output
+// At the expense of fidelity for other Pandoc formats
 impl Default for ConversionConfig {
     fn default() -> Self {
         Self {
             preserve_attributes: false,
-            escape_markdown: false,  // Disabled by default
+            escape_markdown: false,   // Disabled by default
+            render_toggle_div: false, // Disabled by default
         }
     }
 }
@@ -50,10 +57,11 @@ pub mod notion_list;
 pub mod notion_paragraph;
 pub mod notion_quote;
 pub mod notion_text;
+pub mod notion_toggle;
 pub mod supported_blocks;
 pub mod visitor;
 
 // Re-export key traits and implementations
-pub use visitor::NotionBlockVisitor;
 pub use notion_block_visitor::NotionToPandocVisitor;
-pub use supported_blocks::{SupportedBlockType, SupportedBlock};
+pub use supported_blocks::{SupportedBlock, SupportedBlockType};
+pub use visitor::NotionBlockVisitor;

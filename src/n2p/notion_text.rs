@@ -488,7 +488,7 @@ mod tests {
         // Test with newlines
         let result = NotionTextConverter::text_to_inline("Hello\nworld");
         assert_eq!(result.len(), 3);
-        assert!(matches!(result[1], Inline::SoftBreak));
+        assert!(matches!(result[1], Inline::LineBreak));
 
         // Test with multiple spaces
         let result = NotionTextConverter::text_to_inline("Hello  world");

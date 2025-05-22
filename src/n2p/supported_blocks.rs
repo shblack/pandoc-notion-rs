@@ -81,6 +81,7 @@ impl SupportedBlockType {
             SupportedBlockType::NumberedListItem,
             SupportedBlockType::ToDo,
             SupportedBlockType::Divider,
+            SupportedBlockType::Toggle,
             // Add more as they are implemented
         ]
     }

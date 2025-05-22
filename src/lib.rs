@@ -4,12 +4,12 @@
 //! convert them to Pandoc's Abstract Syntax Tree (AST) for document processing.
 
 mod converter;
-mod n2p;
-mod notion;
+pub mod n2p;
+pub mod notion;
 mod notion_block_fetcher;
 mod notion_block_putter;
-mod p2n;
-mod test_utils;
+pub mod p2n;
+pub mod test_utils;
 mod text;
 
 pub use converter::{NotionConverter, ConversionError, create_converter};

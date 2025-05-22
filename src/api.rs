@@ -75,6 +75,7 @@ impl NotionClient2 {
             let conversion_config = ConversionConfig {
                 preserve_attributes,
                 escape_markdown: config.escape_markdown.unwrap_or(true),
+                render_toggle_div: config.render_toggle_div.unwrap_or(false),
             };
             self.converter = self.converter.with_config(conversion_config);
         }
@@ -157,6 +158,8 @@ pub struct ClientConfig {
     pub preserve_attributes: Option<bool>,
     /// Whether to escape markdown characters in output
     pub escape_markdown: Option<bool>,
+    /// Whether to render toggles as div elements
+    pub render_toggle_div: Option<bool>,
 }
 
 impl Default for ClientConfig {
@@ -164,6 +167,7 @@ impl Default for ClientConfig {
         Self {
             preserve_attributes: None,
             escape_markdown: None,
+            render_toggle_div: None,
         }
     }
 }
