@@ -6,6 +6,7 @@
 // Main modules
 pub mod converter;
 pub mod n2p;
+pub mod notion;
 pub mod notion_block_fetcher;
 pub mod notion_block_putter;
 pub mod p2n;
@@ -15,7 +16,8 @@ pub mod text;
 // Re-export key types and traits for convenient usage
 pub use converter::{NotionConverter, ConversionError, create_converter};
 pub use n2p::ConversionConfig;
-pub use notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher};
+pub use notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
+pub use notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, FetchResult};
 pub use notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
 pub use pandoc_types::definition::Pandoc;
 pub use text::processor::PandocProcessor;
@@ -32,7 +34,8 @@ pub mod prelude {
     pub use crate::create_converter;
     pub use crate::create_text_processor;
     pub use crate::ConversionConfig;
-    pub use crate::notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher};
+    pub use crate::notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
+    pub use crate::notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, FetchResult};
     pub use crate::notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
     pub use crate::text::{TextFormat, TextProcessor};
     pub use pandoc_types::definition::{Block, Inline, Pandoc};

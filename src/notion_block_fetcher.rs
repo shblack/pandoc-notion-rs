@@ -10,6 +10,7 @@ use notion_client::objects::block::{Block as NotionBlock, BlockType};
 use std::collections::VecDeque;
 use std::time::Duration;
 use tokio::time::sleep;
+use crate::notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
 
 /// Error types for block fetching operations
 #[derive(Debug, thiserror::Error)]
@@ -95,17 +96,24 @@ impl NotionBlockFetcher {
 
     
     /// Fetch a block and all its children recursively
-    pub async fn fetch_block_with_children(&self, block_id: &str) -> Result<Vec<NotionBlock>> {
+    pub async fn fetch_block_with_children(&self, block_id: &str) -> Result<FetchResult> {
         debug!("Fetching blocks for parent: {}", block_id);
         
         // Fetch the top-level blocks
         let top_level_blocks = self.fetch_blocks(block_id).await?;
         
-        if self.config.breadth_first {
-            self.fetch_children_breadth_first(top_level_blocks).await
+        let mut toggleable_children = ToggleableBlockChildren::new();
+        
+        let blocks = if self.config.breadth_first {
+            self.fetch_children_breadth_first(top_level_blocks, &mut toggleable_children).await?
         } else {
-            self.fetch_children_depth_first(top_level_blocks, 0).await
-        }
+            self.fetch_children_depth_first(top_level_blocks, 0, &mut toggleable_children).await?
+        };
+        
+        Ok(FetchResult {
+            blocks,
+            toggleable_children,
+        })
     }
     
     /// Fetch blocks from the Notion API for a specific parent
@@ -125,7 +133,12 @@ impl NotionBlockFetcher {
     }
     
     /// Depth-first traversal to fetch all children
-    async fn fetch_children_depth_first(&self, blocks: Vec<NotionBlock>, depth: usize) -> Result<Vec<NotionBlock>> {
+    async fn fetch_children_depth_first(
+        &self, 
+        blocks: Vec<NotionBlock>, 
+        depth: usize,
+        toggleable_children: &mut ToggleableBlockChildren
+    ) -> Result<Vec<NotionBlock>> {
         // Stop if we've reached the maximum depth
         if depth >= self.config.max_depth {
             debug!("Reached maximum depth ({}), stopping recursion", self.config.max_depth);
@@ -135,8 +148,25 @@ impl NotionBlockFetcher {
         let mut result = Vec::new();
         
         for mut block in blocks {
-            // Process the block based on its type
-            if self.block_has_children(&block) {
+            // Special handling for toggleable blocks
+            if block.is_toggleable() && block.has_children() {
+                if let Some(id) = block.block_id() {
+                    debug!("Found toggleable block with children: {}", id);
+                    
+                    // Fetch children
+                    let children = self.fetch_blocks(id).await?;
+                    
+                    // Process children recursively
+                    let processed_children = Box::pin(
+                        self.fetch_children_depth_first(children, depth + 1, toggleable_children)
+                    ).await?;
+                    
+                    // Store in the manager
+                    toggleable_children.add_children(&block, processed_children);
+                }
+            }
+            // Regular handling for non-toggleable blocks with children
+            else if self.block_has_children(&block) {
                 if let Some(id) = block.id.as_ref() {
                     // Fetch children
                     debug!("Block of type {:?} has children, fetching recursively...", block.block_type);
@@ -144,7 +174,9 @@ impl NotionBlockFetcher {
                     let children = self.fetch_blocks(id).await?;
                     
                     // Recursively process children - use Box::pin to handle recursion in async fn
-                    let processed_children = Box::pin(self.fetch_children_depth_first(children, depth + 1)).await?;
+                    let processed_children = Box::pin(
+                        self.fetch_children_depth_first(children, depth + 1, toggleable_children)
+                    ).await?;
                     
                     // Attach children to the block
                     self.attach_children_to_block(&mut block, processed_children);
@@ -158,18 +190,31 @@ impl NotionBlockFetcher {
     }
     
     /// Breadth-first traversal to fetch all children
-    async fn fetch_children_breadth_first(&self, blocks: Vec<NotionBlock>) -> Result<Vec<NotionBlock>> {
+    async fn fetch_children_breadth_first(
+        &self, 
+        blocks: Vec<NotionBlock>,
+        toggleable_children: &mut ToggleableBlockChildren
+    ) -> Result<Vec<NotionBlock>> {
         // Create a map to track blocks by ID
         let mut blocks_map = std::collections::HashMap::new();
         
         // Keep track of parent-child relationships separately
         let mut parent_child_map = std::collections::HashMap::new();
         
+        // Track toggleable blocks for later processing
+        let mut toggleable_block_ids = Vec::new();
+        
         // Initialize the queue with the top-level blocks
         let mut queue = VecDeque::new();
         for block in blocks {
             if let Some(id) = block.id.clone() {
                 let has_children = self.block_has_children(&block);
+                
+                // Check if this is a toggleable block
+                if block.is_toggleable() && has_children {
+                    toggleable_block_ids.push(id.clone());
+                }
+                
                 blocks_map.insert(id.clone(), block);
                 if has_children {
                     queue.push_back((id.clone(), 0));
@@ -197,6 +242,12 @@ impl NotionBlockFetcher {
                     
                     // Add the child to the blocks map
                     let has_children = self.block_has_children(&child);
+                    
+                    // Check if this is a toggleable block
+                    if child.is_toggleable() && has_children {
+                        toggleable_block_ids.push(child_id.clone());
+                    }
+                    
                     blocks_map.insert(child_id.clone(), child);
                     
                     // If the child has children, add it to the queue
@@ -229,7 +280,12 @@ impl NotionBlockFetcher {
                     }
                 }
                 
-                // Attach the children to the parent
+                // Special handling for toggleable blocks
+                if parent.is_toggleable() {
+                    toggleable_children.add_children(parent, parent_children.clone());
+                }
+                
+                // Regular handling for all blocks with children
                 self.attach_children_to_block(parent, parent_children);
             }
         }
@@ -290,6 +346,15 @@ impl NotionBlockFetcher {
             }
         }
     }
+}
+
+/// Result of a block fetch operation
+pub struct FetchResult {
+    /// The blocks fetched
+    pub blocks: Vec<NotionBlock>,
+    
+    /// Children of toggleable blocks
+    pub toggleable_children: ToggleableBlockChildren,
 }
 
 /// Helper function to create a block fetcher with default configuration and rate limiting

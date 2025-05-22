@@ -1,12 +1,15 @@
 use crate::n2p::notion_code::try_convert_to_code;
+use crate::n2p::notion_divider;
 use crate::n2p::notion_heading::try_convert_to_heading;
 use crate::n2p::notion_list::{self, ListBuilder};
 use crate::n2p::notion_paragraph::try_convert_to_paragraph;
 use crate::n2p::notion_quote::{convert_notion_quote, QuoteBuilder};
 use crate::n2p::visitor::NotionBlockVisitor;
 use crate::n2p::ConversionConfig;
+use crate::notion::toggleable::ToggleableBlockChildren;
+use log;
 use notion_client::objects::block::{
-    Block as NotionBlock, BlockType, BulletedListItemValue, CodeValue, HeadingsValue, 
+    Block as NotionBlock, BlockType, BulletedListItemValue, CodeValue, DividerValue, HeadingsValue,
     NumberedListItemValue, ParagraphValue, QuoteValue, ToDoValue,
 };
 use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
@@ -14,6 +17,7 @@ use pandoc_types::definition::{Attr, Block as PandocBlock, Inline};
 /// Concrete implementation of the NotionBlockVisitor for converting Notion blocks to Pandoc
 pub struct NotionToPandocVisitor {
     config: ConversionConfig,
+    toggleable_children: Option<ToggleableBlockChildren>,
 }
 
 impl NotionToPandocVisitor {
@@ -21,12 +25,27 @@ impl NotionToPandocVisitor {
     pub fn new() -> Self {
         Self {
             config: ConversionConfig::default(),
+            toggleable_children: None,
         }
     }
     
     /// Create a new visitor with specific configuration
     pub fn with_config(config: ConversionConfig) -> Self {
-        Self { config }
+        Self { 
+            config,
+            toggleable_children: None,
+        }
+    }
+    
+    /// Create a new visitor with toggleable children support
+    pub fn with_toggleable_children(
+        config: ConversionConfig,
+        toggleable_children: ToggleableBlockChildren
+    ) -> Self {
+        Self {
+            config,
+            toggleable_children: Some(toggleable_children),
+        }
     }
 
     /// Convert a list of Notion blocks to Pandoc blocks
@@ -60,6 +79,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
                 self.visit_numbered_list_item(block, numbered_list_item)
             }
             BlockType::ToDo { to_do } => self.visit_todo(block, to_do),
+            BlockType::Divider { divider } => self.visit_divider(block, divider),
             _ => self.visit_unsupported(block),
         }
     }
@@ -83,31 +103,70 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         result
     }
 
-    fn visit_heading_1(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
+    fn visit_heading_1(&self, block: &NotionBlock, heading: &HeadingsValue) -> Vec<PandocBlock> {
+        let mut result = Vec::new();
+        
         // Use existing heading converter
         if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
-            vec![pandoc_block]
-        } else {
-            vec![]
+            result.push(pandoc_block);
         }
+        
+        // If it's toggleable, process its children
+        if heading.is_toggleable.unwrap_or(false) {
+            if let Some(ref toggleable_children) = self.toggleable_children {
+                if let Some(children) = toggleable_children.get_children(block) {
+                    log::debug!("Processing children of toggleable heading 1");
+                    // Process children and add them after the heading
+                    result.extend(self.process_children(children));
+                }
+            }
+        }
+        
+        result
     }
 
-    fn visit_heading_2(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
+    fn visit_heading_2(&self, block: &NotionBlock, heading: &HeadingsValue) -> Vec<PandocBlock> {
+        let mut result = Vec::new();
+        
         // Use existing heading converter
         if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
-            vec![pandoc_block]
-        } else {
-            vec![]
+            result.push(pandoc_block);
         }
+        
+        // If it's toggleable, process its children
+        if heading.is_toggleable.unwrap_or(false) {
+            if let Some(ref toggleable_children) = self.toggleable_children {
+                if let Some(children) = toggleable_children.get_children(block) {
+                    log::debug!("Processing children of toggleable heading 2");
+                    // Process children and add them after the heading
+                    result.extend(self.process_children(children));
+                }
+            }
+        }
+        
+        result
     }
 
-    fn visit_heading_3(&self, block: &NotionBlock, _heading: &HeadingsValue) -> Vec<PandocBlock> {
+    fn visit_heading_3(&self, block: &NotionBlock, heading: &HeadingsValue) -> Vec<PandocBlock> {
+        let mut result = Vec::new();
+        
         // Use existing heading converter
         if let Some(pandoc_block) = try_convert_to_heading(block, &self.config) {
-            vec![pandoc_block]
-        } else {
-            vec![]
+            result.push(pandoc_block);
         }
+        
+        // If it's toggleable, process its children
+        if heading.is_toggleable.unwrap_or(false) {
+            if let Some(ref toggleable_children) = self.toggleable_children {
+                if let Some(children) = toggleable_children.get_children(block) {
+                    log::debug!("Processing children of toggleable heading 3");
+                    // Process children and add them after the heading
+                    result.extend(self.process_children(children));
+                }
+            }
+        }
+        
+        result
     }
 
     fn visit_quote(&self, block: &NotionBlock, quote: &QuoteValue) -> Vec<PandocBlock> {
@@ -195,6 +254,15 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         // Convert this todo item with its children
         if let Some(todo_block) = notion_list::convert_notion_todo(block, &self.config, children_blocks) {
             vec![todo_block]
+        } else {
+            self.visit_unsupported(block)
+        }
+    }
+
+    fn visit_divider(&self, block: &NotionBlock, _divider: &DividerValue) -> Vec<PandocBlock> {
+        // Dividers don't have children, so just convert the block directly
+        if let Some(divider_block) = notion_divider::convert_notion_divider(block, &self.config) {
+            vec![divider_block]
         } else {
             self.visit_unsupported(block)
         }
