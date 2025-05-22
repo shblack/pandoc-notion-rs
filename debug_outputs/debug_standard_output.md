@@ -1,6 +1,0 @@
-- First item
-- Second item
-- Third item
-  - Nested item 1
-  - Nested item 2
-    - Deeply nested item

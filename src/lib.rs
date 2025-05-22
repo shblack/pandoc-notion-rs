@@ -3,25 +3,20 @@
 //! This crate provides tools to work with Notion's API data structures and
 //! convert them to Pandoc's Abstract Syntax Tree (AST) for document processing.
 
-pub mod converter;
-pub mod n2p;
-pub mod notion;
-pub mod notion_block_fetcher;
-pub mod notion_block_putter;
-pub mod p2n;
-pub mod test_utils;
-pub mod text;
+mod converter;
+mod n2p;
+mod notion;
+mod notion_block_fetcher;
+mod notion_block_putter;
+mod p2n;
+mod test_utils;
+mod text;
 
 pub use converter::{NotionConverter, ConversionError, create_converter};
 pub use n2p::ConversionConfig;
-pub use notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
-pub use notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, FetchResult};
-pub use notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
-pub use pandoc_types::definition::Pandoc;
-pub use text::processor::PandocProcessor;
 pub use text::{TextFormat, TextProcessingError, TextProcessor};
 
-pub fn create_text_processor() -> PandocProcessor {
+pub fn create_text_processor() -> impl TextProcessor {
     text::processor::create_processor()
 }
 
@@ -30,11 +25,7 @@ pub mod prelude {
     pub use crate::create_converter;
     pub use crate::create_text_processor;
     pub use crate::ConversionConfig;
-    pub use crate::notion::toggleable::{ToggleableBlock, ToggleableBlockChildren};
-    pub use crate::notion_block_fetcher::{NotionBlockFetcher, BlockFetcherConfig, create_block_fetcher, FetchResult};
-    pub use crate::notion_block_putter::{NotionBlockPutter, BlockPutterConfig, create_block_putter};
     pub use crate::text::{TextFormat, TextProcessor};
-    pub use pandoc_types::definition::{Block, Inline, Pandoc};
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
