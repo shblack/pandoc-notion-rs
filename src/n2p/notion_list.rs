@@ -5,6 +5,201 @@ use pandoc_types::definition::{
     Attr, Block as PandocBlock, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
 };
 
+/// Builder for constructing properly nested list structures in Pandoc format
+/// 
+/// Handles grouping of consecutive items of the same list type and
+/// maintains proper nesting structure according to Pandoc's expectations.
+pub struct ListBuilder {
+    bullet_items: Vec<Vec<PandocBlock>>,
+    ordered_items: Vec<Vec<PandocBlock>>,
+    ordered_attrs: Option<ListAttributes>,
+    result: Vec<PandocBlock>,
+}
+
+impl ListBuilder {
+    /// Create a new empty builder
+    pub fn new() -> Self {
+        Self {
+            bullet_items: Vec::new(),
+            ordered_items: Vec::new(),
+            ordered_attrs: None,
+            result: Vec::new(),
+        }
+    }
+    
+    /// Add a block to the builder
+    pub fn add_block(mut self, block: PandocBlock) -> Self {
+        match block {
+            PandocBlock::BulletList(items) => self.add_bullet_items(items),
+            PandocBlock::OrderedList(attrs, items) => self.add_ordered_items(attrs, items),
+            other => {
+                self.flush_lists();
+                self.result.push(other);
+                self
+            }
+        }
+    }
+    
+    /// Add multiple blocks at once
+    pub fn add_blocks(mut self, blocks: Vec<PandocBlock>) -> Self {
+        for block in blocks {
+            self = self.add_block(block);
+        }
+        self
+    }
+    
+    /// Add bullet list items
+    fn add_bullet_items(mut self, items: Vec<Vec<PandocBlock>>) -> Self {
+        // If we have ordered items, flush them first
+        if !self.ordered_items.is_empty() {
+            self.flush_ordered_list();
+        }
+        
+        // Add the items to our collection
+        self.bullet_items.extend(items);
+        self
+    }
+    
+    /// Add ordered list items
+    fn add_ordered_items(mut self, attrs: ListAttributes, items: Vec<Vec<PandocBlock>>) -> Self {
+        // If we have bullet items, flush them first
+        if !self.bullet_items.is_empty() {
+            self.flush_bullet_list();
+        }
+        
+        // If we already have ordered items with different attributes, flush them
+        if let Some(current_attrs) = &self.ordered_attrs {
+            if *current_attrs != attrs {
+                self.flush_ordered_list();
+            }
+        }
+        
+        // Set or update the attributes
+        self.ordered_attrs = Some(attrs);
+        
+        // Add the items to our collection
+        self.ordered_items.extend(items);
+        self
+    }
+    
+    /// Flush any bullet list items to the result
+    fn flush_bullet_list(&mut self) {
+        if !self.bullet_items.is_empty() {
+            self.result.push(PandocBlock::BulletList(self.bullet_items.clone()));
+            self.bullet_items.clear();
+        }
+    }
+    
+    /// Flush any ordered list items to the result
+    fn flush_ordered_list(&mut self) {
+        if !self.ordered_items.is_empty() && self.ordered_attrs.is_some() {
+            self.result.push(PandocBlock::OrderedList(
+                self.ordered_attrs.clone().unwrap(),
+                self.ordered_items.clone()
+            ));
+            self.ordered_items.clear();
+        }
+    }
+    
+    /// Flush all pending lists
+    fn flush_lists(&mut self) {
+        self.flush_bullet_list();
+        self.flush_ordered_list();
+    }
+    
+    /// Build the final list of blocks
+    pub fn build(mut self) -> Vec<PandocBlock> {
+        // Flush any pending lists
+        self.flush_lists();
+        self.result
+    }
+    
+    /// Static method to collect and merge top-level lists in a document
+    /// 
+    /// This is used as a second pass after individual blocks have been converted,
+    /// to merge consecutive list blocks of the same type into a single list.
+    pub fn collect_document_lists(blocks: Vec<PandocBlock>) -> Vec<PandocBlock> {
+        if blocks.is_empty() {
+            return Vec::new();
+        }
+        
+        let mut result = Vec::new();
+        let mut current_bullet_items: Vec<Vec<PandocBlock>> = Vec::new();
+        let mut current_ordered_items: Vec<Vec<PandocBlock>> = Vec::new();
+        let mut current_ordered_attrs: Option<ListAttributes> = None;
+        
+        // Helper function to flush bullet list items
+        fn flush_bullet_list(result: &mut Vec<PandocBlock>, items: &mut Vec<Vec<PandocBlock>>) {
+            if !items.is_empty() {
+                result.push(PandocBlock::BulletList(items.clone()));
+                items.clear();
+            }
+        }
+        
+        // Helper function to flush ordered list items
+        fn flush_ordered_list(result: &mut Vec<PandocBlock>, items: &mut Vec<Vec<PandocBlock>>, attrs: &mut Option<ListAttributes>) {
+            if !items.is_empty() && attrs.is_some() {
+                // Clone the attributes to avoid ownership issues
+                let attrs_clone = attrs.clone().unwrap();
+                result.push(PandocBlock::OrderedList(attrs_clone, items.clone()));
+                items.clear();
+                *attrs = None;
+            }
+        }
+        
+        for block in blocks {
+            match &block {
+                PandocBlock::BulletList(items) => {
+                    // If we have ordered items, flush them first
+                    flush_ordered_list(&mut result, &mut current_ordered_items, &mut current_ordered_attrs);
+                    
+                    // Add the new bullet items to our collection
+                    if items.len() == 1 {  // Typical output from our list converters
+                        current_bullet_items.push(items[0].clone());
+                    } else {
+                        current_bullet_items.extend(items.clone());
+                    }
+                },
+                PandocBlock::OrderedList(attrs, items) => {
+                    // If we have bullet items, flush them first
+                    flush_bullet_list(&mut result, &mut current_bullet_items);
+                    
+                    // If we already have ordered items with different attributes, flush them
+                    if let Some(ref current_attrs) = current_ordered_attrs {
+                        if current_attrs != attrs {
+                            flush_ordered_list(&mut result, &mut current_ordered_items, &mut current_ordered_attrs);
+                        }
+                    }
+                    
+                    // Set or update the attributes
+                    current_ordered_attrs = Some(attrs.clone());
+                    
+                    // Add the new ordered items to our collection
+                    if items.len() == 1 {  // Typical output from our list converters
+                        current_ordered_items.push(items[0].clone());
+                    } else {
+                        current_ordered_items.extend(items.clone());
+                    }
+                },
+                _ => {
+                    // For any other block type, flush existing lists first
+                    flush_bullet_list(&mut result, &mut current_bullet_items);
+                    flush_ordered_list(&mut result, &mut current_ordered_items, &mut current_ordered_attrs);
+                    
+                    // Add the block to the result
+                    result.push(block);
+                }
+            }
+        }
+        
+        // Flush any remaining list items
+        flush_bullet_list(&mut result, &mut current_bullet_items);
+        flush_ordered_list(&mut result, &mut current_ordered_items, &mut current_ordered_attrs);
+        
+        result
+    }
+}
+
 /// Convert a Notion bulleted list item to a Pandoc bullet list item
 pub fn convert_notion_bulleted_list(
     block: &NotionBlock, 
@@ -25,12 +220,13 @@ pub fn convert_notion_bulleted_list(
             // Create the content of this list item
             let mut item_content = vec![plain];
             
-            // Add nested lists from children to the item content
-            for child in &children_blocks {
-                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
-                    item_content.push(child.clone());
-                }
-            }
+            // Group child blocks by list type using ListBuilder
+            let grouped_children = ListBuilder::new()
+                .add_blocks(children_blocks)
+                .build();
+            
+            // Add all processed child blocks to the item content
+            item_content.extend(grouped_children);
 
             // Create a bullet list with a single item
             Some(PandocBlock::BulletList(vec![item_content]))
@@ -59,12 +255,13 @@ pub fn convert_notion_numbered_list(
             // Create the content of this list item
             let mut item_content = vec![plain];
             
-            // Add nested lists from children to the item content
-            for child in &children_blocks {
-                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
-                    item_content.push(child.clone());
-                }
-            }
+            // Group child blocks by list type using ListBuilder
+            let grouped_children = ListBuilder::new()
+                .add_blocks(children_blocks)
+                .build();
+            
+            // Add all processed child blocks to the item content
+            item_content.extend(grouped_children);
 
             // Create default list attributes (starting at 1)
             let list_attrs = ListAttributes {
@@ -119,12 +316,13 @@ pub fn convert_notion_todo(
             // Create the content of this list item
             let mut item_content = vec![plain];
             
-            // Add nested lists from children to the item content
-            for child in &children_blocks {
-                if let PandocBlock::BulletList(_) | PandocBlock::OrderedList(_, _) = child {
-                    item_content.push(child.clone());
-                }
-            }
+            // Group child blocks by list type using ListBuilder
+            let grouped_children = ListBuilder::new()
+                .add_blocks(children_blocks)
+                .build();
+            
+            // Add all processed child blocks to the item content
+            item_content.extend(grouped_children);
 
             // Create a bullet list with a single item - no special attributes needed
             Some(PandocBlock::BulletList(vec![item_content]))
@@ -397,8 +595,8 @@ mod tests {
         if let PandocBlock::BulletList(items) = &result[0] {
             assert_eq!(items.len(), 1);
             
-            // The item should have 3 blocks: Plain text + 2 nested bullet lists
-            assert_eq!(items[0].len(), 3);
+            // The item should have 2 blocks: Plain text + 1 merged bullet list with 2 items
+            assert_eq!(items[0].len(), 2);
             
             // Check the parent text
             if let PandocBlock::Plain(inlines) = &items[0][0] {
@@ -413,24 +611,26 @@ mod tests {
                 panic!("Expected plain block");
             }
             
-            // Verify the two nested bullet lists
-            for i in 1..3 {
-                if let PandocBlock::BulletList(nested_items) = &items[0][i] {
-                    assert_eq!(nested_items.len(), 1);
-                    if let PandocBlock::Plain(inlines) = &nested_items[0][0] {
+            // Verify the merged bullet list containing the two child items
+            if let PandocBlock::BulletList(nested_items) = &items[0][1] {
+                assert_eq!(nested_items.len(), 2, "Should have 2 nested items");
+            
+                // Check each child item
+                for (i, nested_item) in nested_items.iter().enumerate() {
+                    if let PandocBlock::Plain(inlines) = &nested_item[0] {
                         assert_eq!(inlines.len(), 1);
                         if let Inline::Span(_, span_inlines) = &inlines[0] {
-                            // Verify the text content
-                            assert_inlines_text_eq(span_inlines, &format!("Child item {}", i));
+                            // Verify the text content (adding 1 to i since our items are 1-indexed)
+                            assert_inlines_text_eq(span_inlines, &format!("Child item {}", i+1));
                         } else {
                             panic!("Expected span");
                         }
                     } else {
                         panic!("Expected plain block");
                     }
-                } else {
-                    panic!("Expected bullet list");
                 }
+            } else {
+                panic!("Expected bullet list");
             }
         } else {
             panic!("Expected bullet list");

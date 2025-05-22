@@ -54,6 +54,7 @@ impl Default for BlockPutterConfig {
 }
 
 /// Represents a block in the hierarchy with its children
+#[allow(dead_code)]
 struct BlockNode {
     /// The block data
     block: NotionBlock,
@@ -70,6 +71,7 @@ struct BlockNode {
 
 impl BlockNode {
     /// Create a new block node
+    #[allow(dead_code)]
     fn new(mut block: NotionBlock) -> Self {
         // Extract children if any
         let extracted_children = NotionBlockPutter::extract_children(&mut block);
@@ -99,6 +101,7 @@ impl BlockNode {
     }
     
     /// Build child nodes
+    #[allow(dead_code)]
     fn with_child_nodes(mut self, blocks: Vec<NotionBlock>) -> Self {
         self.children = blocks.into_iter().map(BlockNode::new).collect();
         self

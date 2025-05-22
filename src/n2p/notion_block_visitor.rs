@@ -1,10 +1,8 @@
 use crate::n2p::notion_code::try_convert_to_code;
 use crate::n2p::notion_heading::try_convert_to_heading;
-use crate::n2p::notion_list::{
-    try_convert_to_bulleted_list, try_convert_to_numbered_list, try_convert_to_todo,
-};
+use crate::n2p::notion_list::{self, ListBuilder};
 use crate::n2p::notion_paragraph::try_convert_to_paragraph;
-use crate::n2p::notion_quote::try_convert_to_quote;
+use crate::n2p::notion_quote::{convert_notion_quote, QuoteBuilder};
 use crate::n2p::visitor::NotionBlockVisitor;
 use crate::n2p::ConversionConfig;
 use notion_client::objects::block::{
@@ -33,7 +31,14 @@ impl NotionToPandocVisitor {
 
     /// Convert a list of Notion blocks to Pandoc blocks
     pub fn convert_blocks(&self, blocks: &[NotionBlock]) -> Vec<PandocBlock> {
-        self.process_children(blocks)
+        // First pass: process each block individually
+        let raw_blocks = self.process_children(blocks);
+        
+        // Second pass: collect and merge list blocks
+        let with_lists = ListBuilder::collect_document_lists(raw_blocks);
+        
+        // Third pass: process blockquotes to ensure proper nesting order
+        QuoteBuilder::process_document_quotes(with_lists)
     }
 }
 
@@ -108,17 +113,21 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     fn visit_quote(&self, block: &NotionBlock, quote: &QuoteValue) -> Vec<PandocBlock> {
         let mut result = Vec::new();
 
-        // Convert the main quote
-        if let Some(pandoc_block) = try_convert_to_quote(block, &self.config) {
-            result.push(pandoc_block);
-        }
-
         // Process children if present
-        if let Some(children) = &quote.children {
+        let children_blocks = if let Some(children) = &quote.children {
             if !children.is_empty() {
-                // Use the visitor's process_children method to handle children
-                result.extend(self.process_children(children));
+                // Process children separately to be included in the quote
+                self.process_children(children)
+            } else {
+                Vec::new()
             }
+        } else {
+            Vec::new()
+        };
+
+        // Convert the quote with its children
+        if let Some(pandoc_block) = convert_notion_quote(block, &self.config, children_blocks) {
+            result.push(pandoc_block);
         }
 
         result
@@ -141,7 +150,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     fn visit_bulleted_list_item(
         &self,
         block: &NotionBlock,
-        item: &BulletedListItemValue,
+        _item: &BulletedListItemValue,
     ) -> Vec<PandocBlock> {
         // First, get the children
         let children = self.get_children(block);
@@ -150,7 +159,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let children_blocks = self.process_children(&children);
         
         // Convert this list item with its children
-        if let Some(list_block) = crate::n2p::notion_list::convert_notion_bulleted_list(block, &self.config, children_blocks) {
+        if let Some(list_block) = notion_list::convert_notion_bulleted_list(block, &self.config, children_blocks) {
             vec![list_block]
         } else {
             self.visit_unsupported(block)
@@ -160,7 +169,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
     fn visit_numbered_list_item(
         &self,
         block: &NotionBlock,
-        item: &NumberedListItemValue,
+        _item: &NumberedListItemValue,
     ) -> Vec<PandocBlock> {
         // First, get the children
         let children = self.get_children(block);
@@ -169,14 +178,14 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let children_blocks = self.process_children(&children);
         
         // Convert this list item with its children
-        if let Some(list_block) = crate::n2p::notion_list::convert_notion_numbered_list(block, &self.config, children_blocks) {
+        if let Some(list_block) = notion_list::convert_notion_numbered_list(block, &self.config, children_blocks) {
             vec![list_block]
         } else {
             self.visit_unsupported(block)
         }
     }
 
-    fn visit_todo(&self, block: &NotionBlock, todo: &ToDoValue) -> Vec<PandocBlock> {
+    fn visit_todo(&self, block: &NotionBlock, _todo: &ToDoValue) -> Vec<PandocBlock> {
         // First, get the children
         let children = self.get_children(block);
         
@@ -184,7 +193,7 @@ impl NotionBlockVisitor for NotionToPandocVisitor {
         let children_blocks = self.process_children(&children);
         
         // Convert this todo item with its children
-        if let Some(todo_block) = crate::n2p::notion_list::convert_notion_todo(block, &self.config, children_blocks) {
+        if let Some(todo_block) = notion_list::convert_notion_todo(block, &self.config, children_blocks) {
             vec![todo_block]
         } else {
             self.visit_unsupported(block)

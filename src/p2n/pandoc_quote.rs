@@ -111,7 +111,7 @@ impl PandocQuoteConverter {
 
         // Extract text content from the first paragraph in the block quote
         let mut builder = NotionQuoteBuilder::new();
-        let children = Vec::new();
+        let mut children = Vec::new();
         
         // Process the first block for the quote content
         match blocks.first() {
@@ -136,9 +136,46 @@ impl PandocQuoteConverter {
             None => {},
         }
         
-        // Process remaining blocks as children if needed
-        // Note: In a real implementation, this would be handled by the visitor
-        // which processes nested blocks recursively
+        // Process remaining blocks as children
+        if blocks.len() > 1 {
+            // Process each block after the first one as a child
+            for child_block in &blocks[1..] {
+                match child_block {
+                    // For nested BlockQuotes, process them recursively
+                    PandocBlock::BlockQuote(nested_blocks) => {
+                        let nested_quote = self.convert(nested_blocks)?;
+                        children.push(nested_quote);
+                    },
+                    // For other block types, they need to be processed by the visitor
+                    // but since we don't have access to it here, we'll create simple text blocks
+                    PandocBlock::Para(inlines) | PandocBlock::Plain(inlines) => {
+                        let rich_text = self.text_converter.convert(inlines)?;
+                        let paragraph_block = crate::p2n::pandoc_paragraph::NotionParagraphBuilder::new()
+                            .rich_text(rich_text)
+                            .build();
+                        children.push(paragraph_block);
+                    },
+                    // Other block types would need similar handling
+                    _ => {
+                        // Add a placeholder for unsupported types
+                        let unsupported_msg = format!("Unsupported block in quote: {:?}", child_block);
+                        let text = notion_client::objects::rich_text::RichText::Text {
+                            text: notion_client::objects::rich_text::Text {
+                                content: unsupported_msg,
+                                link: None,
+                            },
+                            annotations: None,
+                            plain_text: None,
+                            href: None,
+                        };
+                        let paragraph_block = crate::p2n::pandoc_paragraph::NotionParagraphBuilder::new()
+                            .add_rich_text(text)
+                            .build();
+                        children.push(paragraph_block);
+                    }
+                }
+            }
+        }
         
         // Add all collected children to the builder
         if !children.is_empty() {
@@ -203,6 +240,12 @@ impl PandocQuoteConverter {
             },
             _ => Ok(None),
         }
+    }
+
+    /// Recursive helper to process nested blockquotes with proper nesting
+    pub fn process_nested_quote(&self, blocks: &[PandocBlock]) -> Result<NotionBlock, Box<dyn Error>> {
+        // This is just a wrapper for convert to make the recursive intent clearer
+        self.convert(blocks)
     }
 }
 

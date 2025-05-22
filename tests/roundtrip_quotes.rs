@@ -19,6 +19,7 @@ fn test_quotes_roundtrip() {
         create_quote_with_multiple_text_segments(),
         create_quote_with_children(),
         create_empty_quote(),
+        create_nested_quotes(),
     ];
 
     // Test each case
@@ -120,6 +121,24 @@ fn create_empty_quote() -> NotionBlock {
     block
 }
 
+/// Creates nested quotes to test proper handling of quote hierarchies
+fn create_nested_quotes() -> NotionBlock {
+    // Create third level quote
+    let third_level = test::create_quote_block("Third level quote", None);
+    
+    // Create second level quote with third level as child
+    let second_level = test::create_quote_block(
+        "Second level quote", 
+        Some(vec![third_level])
+    );
+    
+    // Create first level quote with second level as child
+    test::create_quote_block(
+        "First level quote", 
+        Some(vec![second_level])
+    )
+}
+
 /// Verifies the results of the roundtrip conversion for quotes
 fn verify_quote_roundtrip(
     case_index: usize,
@@ -141,7 +160,7 @@ fn verify_quote_roundtrip(
     };
     
     // For cases with children, the hierarchy may be flattened
-    if case_index == 3 { // quote with children
+    if case_index == 3 || case_index == 5 { // quote with children or nested quotes
         // Verify the first block is a quote
         verify_block_type(&roundtrip[0], "quote");
         
@@ -157,6 +176,11 @@ fn verify_quote_roundtrip(
         
         // In a Pandoc roundtrip, child blocks are preserved but flattened
         println!("Note: For quotes with children, hierarchical structure may not be preserved in Pandoc roundtrip");
+        
+        // For nested quotes case, add specific debugging
+        if case_index == 5 {
+            println!("Testing nested quotes - Note that proper nesting is essential for correct rendering");
+        }
     } else {
         // For simple cases, verify exact content
         verify_block_type(&roundtrip[0], "quote");

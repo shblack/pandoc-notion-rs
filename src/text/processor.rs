@@ -35,6 +35,21 @@ impl PandocProcessor {
         self
     }
     
+    /// Get pandoc format string, using commonmark_x for markdown
+    fn get_pandoc_format(&self, format: TextFormat) -> &'static str {
+        match format {
+            TextFormat::Markdown => "commonmark_x",
+            TextFormat::CommonMark => "commonmark",
+            TextFormat::GithubMarkdown => "gfm",
+            TextFormat::PlainText => "plain",
+            TextFormat::Html => "html",
+            TextFormat::Latex => "latex",
+            TextFormat::Rst => "rst",
+            TextFormat::Org => "org",
+            TextFormat::Custom(fmt) => fmt,
+        }
+    }
+    
     /// Check if Pandoc is available and get its version
     pub fn check_pandoc_availability(&self) -> Result<String, TextProcessingError> {
         let output = self.create_command(&["--version"])
@@ -89,7 +104,7 @@ impl TextProcessor for PandocProcessor {
     fn text_to_ast(&self, text: &str, format: TextFormat) -> Result<Pandoc, TextProcessingError> {
         // Run pandoc to convert text to JSON AST
         let mut child = self.create_command(&[
-            "-f", format.as_pandoc_format(),
+            "-f", self.get_pandoc_format(format),
             "-t", "json"
         ])
         .stdin(Stdio::piped())
@@ -124,7 +139,7 @@ impl TextProcessor for PandocProcessor {
         // Run pandoc to convert JSON to the desired format
         let mut child = self.create_command(&[
             "-f", "json",
-            "-t", format.as_pandoc_format()
+            "-t", self.get_pandoc_format(format)
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -156,8 +171,8 @@ impl TextProcessor for PandocProcessor {
     ) -> Result<String, TextProcessingError> {
         // Create pandoc command with input and output formats
         let mut child = self.create_command(&[
-            "-f", from_format.as_pandoc_format(),
-            "-t", to_format.as_pandoc_format()
+            "-f", self.get_pandoc_format(from_format),
+            "-t", self.get_pandoc_format(to_format)
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -192,7 +207,7 @@ impl TextProcessor for PandocProcessor {
         // Run pandoc to convert the file to JSON AST
         let output = self.create_command(&[
             path_str,
-            "-f", format.as_pandoc_format(),
+            "-f", self.get_pandoc_format(format),
             "-t", "json"
         ])
         .output()?;
@@ -225,7 +240,7 @@ impl TextProcessor for PandocProcessor {
         // Run pandoc to convert JSON to the output file
         let mut child = self.create_command(&[
             "-f", "json",
-            "-t", format.as_pandoc_format(),
+            "-t", self.get_pandoc_format(format),
             "-o", path_str
         ])
         .stdin(Stdio::piped())
@@ -286,8 +301,8 @@ impl TextProcessor for PandocProcessor {
         // Run pandoc to convert directly from input to output file
         let output = self.create_command(&[
             input_path_str,
-            "-f", from_format.as_pandoc_format(),
-            "-t", to_format.as_pandoc_format(),
+            "-f", self.get_pandoc_format(from_format),
+            "-t", self.get_pandoc_format(to_format),
             "-o", output_path_str
         ])
         .output()?;
