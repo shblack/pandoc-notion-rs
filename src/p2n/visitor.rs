@@ -37,6 +37,9 @@ pub trait PandocBlockVisitor {
     fn visit_code_block(&self, attr: &Attr, content: &str)
     -> Result<Vec<NotionBlock>, Box<dyn Error>>;
 
+    // Divider/horizontal rule
+    fn visit_horizontal_rule(&self) -> Result<Vec<NotionBlock>, Box<dyn Error>>;
+
     // Handle unsupported blocks
     fn visit_unsupported(&self, block: &PandocBlock) -> Result<Vec<NotionBlock>, Box<dyn Error>>;
 

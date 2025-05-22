@@ -1,4 +1,5 @@
 use crate::p2n::pandoc_code::PandocCodeConverter;
+use crate::p2n::pandoc_divider::PandocDividerConverter;
 use crate::p2n::pandoc_heading::PandocHeadingConverter;
 use crate::p2n::pandoc_list::PandocListConverter;
 use crate::p2n::pandoc_paragraph::PandocParagraphConverter;
@@ -16,6 +17,7 @@ pub struct PandocToNotionVisitor {
     list_converter: PandocListConverter,
     quote_converter: PandocQuoteConverter,
     code_converter: PandocCodeConverter,
+    divider_converter: PandocDividerConverter,
 }
 
 impl PandocToNotionVisitor {
@@ -27,6 +29,7 @@ impl PandocToNotionVisitor {
             list_converter: PandocListConverter::new(),
             quote_converter: PandocQuoteConverter::new(),
             code_converter: PandocCodeConverter::new(),
+            divider_converter: PandocDividerConverter::new(),
         }
     }
 
@@ -56,6 +59,7 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
             PandocBlock::BulletList(items) => self.visit_bullet_list(items),
             PandocBlock::OrderedList(attrs, items) => self.visit_ordered_list(attrs, items),
             PandocBlock::CodeBlock(attr, content) => self.visit_code_block(attr, content),
+            PandocBlock::HorizontalRule => self.visit_horizontal_rule(),
             _ => self.visit_unsupported(block),
         }
     }
@@ -220,6 +224,18 @@ impl PandocBlockVisitor for PandocToNotionVisitor {
         Ok(vec![code_block])
     }
 
+    fn visit_horizontal_rule(&self) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
+        // Convert the horizontal rule using our divider converter
+        match self.divider_converter.convert(&PandocBlock::HorizontalRule, None)? {
+            Some(divider) => Ok(vec![divider]),
+            None => {
+                // This shouldn't happen as our converter explicitly handles HorizontalRule,
+                // but we'll handle it gracefully just in case.
+                self.visit_unsupported(&PandocBlock::HorizontalRule)
+            }
+        }
+    }
+
     fn visit_unsupported(&self, block: &PandocBlock) -> Result<Vec<NotionBlock>, Box<dyn Error>> {
         // Create a paragraph block with a message about unsupported block
         let block_type = format!("{:?}", block);
@@ -354,8 +370,8 @@ mod tests {
     fn test_convert_unsupported() {
         let visitor = PandocToNotionVisitor::new();
 
-        // Create an unsupported block type (HorizontalRule)
-        let unsupported_block = PandocBlock::HorizontalRule;
+        // Create an unsupported block type (Null)
+        let unsupported_block = PandocBlock::Null;
 
         // Convert using visitor
         let result = visitor.visit_block(&unsupported_block).unwrap();
@@ -363,15 +379,38 @@ mod tests {
         // Should produce a single block
         assert_eq!(result.len(), 1);
 
-        // Verify it's converted to a paragraph with an unsupported message
+        // Verify it's a paragraph with an unsupported message
         match &result[0].block_type {
             BlockType::Paragraph { paragraph } => {
                 assert_eq!(paragraph.rich_text.len(), 1);
-                let text = paragraph.rich_text[0].plain_text().unwrap();
-                assert!(text.contains("Unsupported Pandoc block type"));
-                assert!(text.contains("HorizontalRule"));
+                assert!(paragraph.rich_text[0]
+                    .plain_text()
+                    .unwrap()
+                    .contains("Unsupported"));
             }
-            _ => panic!("Expected Paragraph block type"),
+            _ => panic!("Expected paragraph block with unsupported message"),
+        }
+    }
+
+    #[test]
+    fn test_convert_horizontal_rule() {
+        let visitor = PandocToNotionVisitor::new();
+
+        // Create a horizontal rule
+        let hr = PandocBlock::HorizontalRule;
+
+        // Convert using visitor
+        let result = visitor.visit_block(&hr).unwrap();
+
+        // Should produce a single block
+        assert_eq!(result.len(), 1);
+
+        // Verify it's a divider
+        match &result[0].block_type {
+            BlockType::Divider { divider: _ } => {
+                // Success - divider has no properties to check
+            }
+            _ => panic!("Expected Divider block type"),
         }
     }
 

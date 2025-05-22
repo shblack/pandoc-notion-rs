@@ -1,90 +1,134 @@
-**Role:** You are a meticulous transcription assistant tasked with
-converting raw, potentially corrupted patient-doctor dialogue into a
-structured transcript.
+# Medical Note
 
-**Objective:** Transform the raw text (which may contain errors, gaps,
-or inconsistencies) into a clean, chronologically ordered script.
-Preserve **every word** of the original text without omissions,
-summaries, or alterations.
+### Subjective
 
-<div>
+I evaluated Mr. Stiff today for acute respiratory distress. The patient
+reports feeling unwell since this morning, with progressive worsening of
+his breathing. He was initially on 3 liters of oxygen with an oxygen
+saturation of 80%, which prompted me to increase to 6 liters. The
+patient has a history of hypercapnic respiratory failure with previous
+IMC (Intermediate Care) admissions. When questioned about the onset of
+symptoms, he indicated they began this morning after having an "okay"
+night. I noted his condition has deteriorated compared to yesterday's
+assessment.
 
-Unsupported block type
+### Physical Exam
 
-</div>
+- Respiratory: Moving "pretty good air" with no significant wheezing
+  heard
+- Cardiovascular: Heart murmur present, tachycardia noted
+- Oxygen: Initially 80% on 3L, increased to 6L, then adjusted to 4L,
+  then 3L
+- Mental status: Alert and oriented despite hypercapnia
+- ABG results: 7, 3, 6, 80, 69 - patient is hypercapnic but reasonably
+  compensated
 
-**Instructions:**
+### Plan
 
-### 1. **Speaker Identification**
+- Chest X-ray ordered and completed
+- EKG ordered
+- ABG completed - shows hypercapnia with reasonable compensation
+- Consider short trial of BiPAP (patient reportedly uses nocturnal BiPAP
+  at home)
+- Anticipate transfer to IMC (Intermediate Care) unit
+- Respiratory treatments (previously administered)
+- Continue oxygen therapy with titration based on response
 
-- Label each line as `Doctor:`, `Patient:`, or `Other:`. Use these
-  contextual clues to infer speakers:
-  - **Medical Terminology/Explanations:**
-    - Doctor: Provides explanations, diagnoses, or plans. Example:
-      *"We're going to get an X-ray." → Label as Doctor.*
-  - **Personal Symptoms/Concerns:**
-    - Patient: Describes first-person experiences (e.g., "My chest
-      hurts"), symptoms, or emotions. Example: *"I've had nausea since
-      yesterday." → Label as Patient.*
-  - **Conversation Flow:**
-    - Doctor: Leads with explanations, questions, and instructions
-      (e.g., "Lie down for the exam").
-    - Patient: Often answers questions or asks about treatments.
-  - **Third Parties:**
-    - Other: Includes nurses, family, or translators.
-    - Speaks in reference to the patient in the third person.
-  - **Tone/Perspective:**
-    - Doctor: Professional, explanatory, or advisory language.
-    - Patient: Subjective, emotional, or personal concerns.
-- If uncertain, make an educated guess and proceed.
+### Physical Exam
 
-### 2. **Handling Corruption/Gaps**
+Gen: Patient appears in respiratory distress, using accessory muscles of
+respiration, stated he does not feel well  
+Neuro: Alert and oriented x3  
+CV: Tachycardic, heart murmur present  
+Pulm: Decreased breath sounds at bases, using accessory muscles of
+respiration, unable to complete full sentences  
+Abdomen: Soft, nontender, nondistended, bowel sounds heard
 
-- Insert `[inaudible]` for unclear audio and `[missing text]` for gaps.
-- Only infer missing text if context provides **clear justification**,
-  marking assumptions with angle brackets: Example:
-  `Patient: I’ve had <chest pain> for two days`
-- Add a note for assumptions: e.g.,
-  `<assumed continuation of symptoms>`.
+### Hospital Course
 
-### 3. **Text Integrity**
+Mr. Stith is a 73-year-old male with multiple comorbidities including
+COPD on 3L NC and nocturnal CPAP requiring IMC admissions for
+respiratory failure, thoracic aortic aneurysm s/p stent, CAD s/p
+angiogram (2022), HTN, HLD, HFpEF, anxiety disorder (particularly
+nocturnal), who presented due to shortness of breath. He was admitted to
+observation for exacerbated dyspnea in the background of chronic hypoxic
+and hypercapnic respiratory failure. On examination, he was comfortable
+on his baseline 3L nasal cannula oxygen, speaking in full sentences,
+with mild bibasilar wheezing. He described difficulty operating his home
+CPAP device and attributed his morning dyspnea to this issue. Treatment
+included nocturnal CPAP initiation and empiric COPD exacerbation
+treatment with IV steroids.
 
-- **Reproduce all content verbatim**---no paraphrasing, condensing, or
-  omissions.
-- Include filler words (e.g., \"um,\" \"uh\"), repetitions, and
-  grammatical errors exactly as written.
+During his stay, he developed chest pain with anxiety and AFib RVR. He
+underwent CT dissection protocol (negative), was placed on Amiodarone
+gtt, and given IV lorazepam. Patient experienced temporary altered
+mental status after receiving 2mg IV lorazepam instead of the ordered
+1mg, requiring flumazenil administration. He subsequently developed
+delirium with agitation requiring restraints briefly. The AFib RVR has
+since resolved with amiodarone.
 
-### 4. **Formatting Rules**
+The patient was initially medically stabilized, but discharge planning
+was complicated when his assisted living facility declined his return.
+He was subsequently accepted by a new assisted living facility however
+logistics of this transfer are apparently delayed.
 
-- Each line must follow:`Speaker: [exact dialogue]` Example:
-  ``` text
-  Doctor: How long have you had the pain?
-  Patient: Uh, about [inaudible] weeks.
-  ```
-- Retain the original conversation order. Do not rephrase or reorganize.
+He then developed fluctuating delirium with malaise, delayed rise in
+WBCs not attributable to steroids, and periodic borderline hypotension
+of uncertain etiology, prompting initiation of empiric antibiotics
+pending negative blood cultures. Today (HD 8), patient experienced acute
+respiratory distress with oxygen desaturation to 80% on his baseline 3L
+NC, requiring escalation to 6L NC. ABG showed compensated hypercapnia.
+Chest x-ray revealed worsening bilateral pleural effusions and perihilar
+congestion compared to previous imaging. Given clinical deterioration,
+patient is being transferred to IMC for closer monitoring and possible
+BiPAP therapy.
 
-### 5. **Transparency**
+### Assessment and Plan
 
-- Clearly mark uncertainties (e.g., `[inaudible]`, `<assumed...>`) to
-  distinguish inferred content from original text.
-- Avoid adding explanations, notes, or commentary outside the
-  transcript.
+## Active Medical Issues
 
-<div>
+73M admitted with respiratory distress, now with acute respiratory
+deterioration requiring increased O2 support from baseline 3L to 6L NC.
+History significant for COPD, CAD, and chronic hypoxic/hypercapnic
+respiratory failure. Current ABG shows compensated hypercapnia with O2
+sat 80%. CXR reveals worsening bilateral pleural effusions.
 
-Unsupported block type
+## Respiratory Deterioration
 
-</div>
+Acute worsening of respiratory status likely multifactorial: possible
+CHF exacerbation (given CXR findings), COPD component, and potential
+underlying infection. Patient requires IMC transfer for closer
+monitoring.
 
-**Output Example:**
+- Transfer to IMC for higher level of care
+- Trial BiPAP given home use and current respiratory status
+- Obtain repeat ABG in 1-2 hours post intervention
+- Consider diuresis if evidence of fluid overload
 
-``` text
-Doctor: Good morning. What brings you in today?
-Patient: My throat’s been sore for <three days>, and I [missing text].
-Other: [inaudible]
-Doctor: Any fever?
-Patient: Yeah, around 101 last night.
-```
+## Suspected Infection
 
-**Critical Reminder:** If the raw text ends abruptly, continue
-processing until *all* content is transcribed.
+Leukocytosis trending down (16→14) but persistent, combined with
+respiratory deterioration and recent AFib RVR raises concern for
+underlying infection.
+
+- Continue empiric Zosyn pending culture results
+- Monitor WBC trend and inflammatory markers
+- Assess need for expanded coverage based on clinical response
+
+## Cardiovascular Status
+
+Recent AFib with RVR now resolved on amiodarone. High CHA2DS2-VASc score
+requires continued anticoagulation.
+
+- Continue Eliquis 5mg BID
+- Maintain amiodarone 200mg daily
+- Monitor for rhythm recurrence given respiratory deterioration
+
+## Disposition Planning
+
+Pending:
+
+- Stabilization of respiratory status in IMC
+- Completion of antibiotic course
+- Resolution of leukocytosis
+- Finalization of Medicaid waiver for new assisted living facility

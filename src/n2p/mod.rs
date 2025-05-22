@@ -44,13 +44,16 @@ impl Default for ConversionConfig {
 
 pub mod notion_block_visitor;
 pub mod notion_code;
+pub mod notion_divider;
 pub mod notion_heading;
 pub mod notion_list;
 pub mod notion_paragraph;
 pub mod notion_quote;
 pub mod notion_text;
+pub mod supported_blocks;
 pub mod visitor;
 
 // Re-export key traits and implementations
 pub use visitor::NotionBlockVisitor;
 pub use notion_block_visitor::NotionToPandocVisitor;
+pub use supported_blocks::{SupportedBlockType, SupportedBlock};
